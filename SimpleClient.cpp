@@ -53,9 +53,10 @@
 	David Barr, aka javidx9, �OneLoneCoder 2019, 2020
 
 */
-
+#define OLC_PGE_APPLICATION
 #include <iostream>
 #include <olc_net.h>
+#include "olcPixelGameEngine.h"
 
 enum class CustomMsgTypes : uint32_t
 {
@@ -91,36 +92,35 @@ public:
 	}
 };
 
-int main()
+class Example : public olc::PixelGameEngine
 {
-	CustomClient c;
-	c.Connect("127.0.0.1", 60000);
-
-	bool key[3] = { false, false, false };
-	bool old_key[3] = { false, false, false };
-
-	bool bQuit = false;
-	while (!bQuit)
+public:
+	Example()
 	{
-		if (GetForegroundWindow() == GetConsoleWindow())
-		{
-			key[0] = GetAsyncKeyState('1') & 0x8000;
-			key[1] = GetAsyncKeyState('2') & 0x8000;
-			key[2] = GetAsyncKeyState('3') & 0x8000;
-		}
+		sAppName = "Example";
+	}
 
-		if (key[0] && !old_key[0]) c.PingServer();
-		if (key[1] && !old_key[1]) c.MessageAll();
-		if (key[2] && !old_key[2]) bQuit = true;
+public:
+	bool OnUserCreate() override
+	{
+		// Called once at the start, so create things here
+		return true;
+	}
 
-		for (int i = 0; i < 3; i++) old_key[i] = key[i];
+	bool OnUserUpdate(float fElapsedTime) override
+	{
+		// called once per frame
+		// for (int x = 0; x < ScreenWidth(); x++)
+		// 	for (int y = 0; y < ScreenHeight(); y++)
+		// 		Draw(x, y, olc::Pixel(rand() % 255, rand() % 255, rand()% 255));	
+		if (GetKey(olc::Key::A).bReleased) c.Connect("127.0.0.1", 60000);
+		if (GetKey(olc::Key::S).bReleased) c.PingServer();
+		
 
 		if (c.IsConnected())
 		{
 			if (!c.Incoming().empty())
 			{
-
-
 				auto msg = c.Incoming().pop_front().msg;
 
 				switch (msg.header.id)
@@ -156,11 +156,24 @@ int main()
 		}
 		else
 		{
-			std::cout << "Server Down\n";
-			bQuit = true;
+			// std::cout << "Server Down\n";
 		}
 
+
+
+
+		return true;
 	}
 
+	CustomClient c;
+};
+
+
+
+int main()
+{
+	Example demo;
+	if (demo.Construct(256, 240, 1, 1))
+		demo.Start();
 	return 0;
 }

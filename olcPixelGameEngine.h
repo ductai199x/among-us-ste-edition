@@ -151,7 +151,7 @@
 
 	Author
 	~~~~~~
-	David Barr, aka javidx9, ©OneLoneCoder 2018, 2019, 2020
+	David Barr, aka javidx9, ï¿½OneLoneCoder 2018, 2019, 2020
 
 	2.01: Made renderer and platform static for multifile projects
 	2.02: Added Decal destructor, optimised Pixel constructor
@@ -265,6 +265,7 @@ int main()
 // | COMPILER CONFIGURATION ODDITIES                                              |
 // O------------------------------------------------------------------------------O
 #define USE_EXPERIMENTAL_FS
+#define FORCE_EXPERIMENTAL_FS
 
 #if defined(_WIN32)
 	#if _MSC_VER >= 1920 && _MSVC_LANG >= 201703L

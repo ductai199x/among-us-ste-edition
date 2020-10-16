@@ -10,7 +10,7 @@ BUILD_DIR ?= ./build
 # OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 # DEPS := $(OBJS:.o=.d)
 
-INC_DIRS := ./networking ./pgex
+INC_DIRS := ./networking ./pgex ./asio-1.18.0/include
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 CPPFLAGS ?= $(INC_FLAGS)

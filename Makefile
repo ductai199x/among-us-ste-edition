@@ -27,7 +27,7 @@ server: SimpleServer.cpp
 	$(MKDIR_P) $(dir $@)
 	$(CXX) $(CPPFLAGS) $< $(CXXFLAGS) -o $(SERVER_EXEC)
 
-gui: olcExampleProgram.cpp
+program: olcExampleProgram.cpp
 	echo $(INC_DIRS)
 	$(MKDIR_P) $(dir $@)
 	$(CXX) $(CPPFLAGS) $< $(CXXFLAGS) -o $(EXAMPLE_PROGRAM)

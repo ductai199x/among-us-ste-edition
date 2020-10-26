@@ -10,7 +10,7 @@ BUILD_DIR ?= ./build
 # OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 # DEPS := $(OBJS:.o=.d)
 
-INC_DIRS := ./networking ./pgex ./helper
+INC_DIRS := ./networking ./helper
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 CPPFLAGS ?= $(INC_FLAGS)
@@ -20,16 +20,12 @@ CXXFLAGS ?= -lX11 -lGL -lpthread -lpng -lstdc++fs -std=c++17
 .PHONY: clean client server all
 
 client: Client.cpp
-	$(MKDIR_P) $(dir $@)
 	$(CXX) $(CPPFLAGS) $< $(CXXFLAGS) -o $(CLIENT_EXEC)
 
 server: Server.cpp
-	$(MKDIR_P) $(dir $@)
 	$(CXX) $(CPPFLAGS) $< $(CXXFLAGS) -o $(SERVER_EXEC)
 
 program: olcExampleProgram.cpp
-	echo $(INC_DIRS)
-	$(MKDIR_P) $(dir $@)
 	$(CXX) $(CPPFLAGS) $< $(CXXFLAGS) -o $(EXAMPLE_PROGRAM)
 
 

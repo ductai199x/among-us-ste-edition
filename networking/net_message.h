@@ -134,18 +134,16 @@ namespace olc
 				// Cache the location towards the end of the vector where the pulled data starts
 				size_t i = msg.body.size() - sizeof(DataType);
 
-				std::cout << i << " " << msg.body.size() << " " << sizeof(DataType) << "\n";
+				// std::cout << i << " " << msg.body.size() << " " << sizeof(DataType) << "\n";
 
 				// Physically copy the data from the vector into the user variable
-				std::memcpy(&data, &msg.body.front(), sizeof(DataType));
+				std::memcpy(&data, msg.body.data() + i, sizeof(DataType));
 
 				// Shrink the vector to remove read bytes, and reset end position
-				// msg.body.resize(i);
+				msg.body.resize(i);
 
 				// Recalculate the message size
-				// msg.header.size = msg.size();
-
-				std::cout << sizeof(data) << "\n";
+				msg.header.size = msg.size();
 
 				// Return the target message so it can be "chained"
 				return msg;

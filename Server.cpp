@@ -5,7 +5,7 @@
 #include <iomanip>
 #include <unordered_map>
 #include <variant>
-#include <olc_net.h>
+#include "networking/olc_net.h"
 #include "MessageTypes.h"
 #include "helper/json.hpp"
 
@@ -27,19 +27,18 @@ public:
 
 	bool UpdateDatabase(json updates)
 	{
-		// std::cout << std::setw(4) << updates << std::endl;
-		// for (auto &[key, value] : updates.items())
-		// {
-		// 	std::cout << "Updating: " << key << " : " << value << std::endl;
-		// 	if (database.contains(key))
-		// 	{
-		// 		database[key] = value;
-		// 	}
-		// 	else
-		// 	{
-		// 		std::cout << key << "does not exist in database" << std::endl;
-		// 	}
-		// }
+		for (auto &[key, value] : updates.items())
+		{
+			std::cout << "Updating: " << key << " : " << value << std::endl;
+			if (database.contains(key))
+			{
+				database[key] = value;
+			}
+			else
+			{
+				std::cout << key << " does not exist in database" << std::endl;
+			}
+		}
 		return true;
 	}
 
@@ -110,19 +109,25 @@ protected:
 		case MsgTypes::ClientUpdateGS:
 		{
 			std::cout << "[" << client->GetID() << "]: ClientUpdateGS\n";
-			std::cout << msg << "\n";
-			// char[7] s;
-			std::string s;
-			msg >> s;
-			// std::cout << s << std::endl;
-			// auto updates = json::parse(s);
-			// std::cout << updates;
-			// gameInstance.UpdateDatabase(updates);
-			// if (gameInstance.UpdateDatabase(&updates)) {
-			// 	olc::net::message<MsgTypes> ack;
-			// 	ack.header.id = MsgTypes::ServerACK;
-			// 	client->Send(ack);
-			// }
+			std::vector<char> rcvBuf;
+			uint32_t messageLength = msg.header.size;
+			std::cout << messageLength << "\n";
+			for (int i = 0; i < messageLength; i++)
+			{
+				char c;
+				msg >> c;
+				rcvBuf.push_back(c);
+			}
+			std::reverse(std::begin(rcvBuf), std::end(rcvBuf));
+			std::string s(rcvBuf.begin(), rcvBuf.end());
+			auto updates = json::parse(s);
+			if (gameInstance.UpdateDatabase(updates))
+			{
+				gameInstance.PrintDatabase();
+				olc::net::message<MsgTypes> ack;
+				ack.header.id = MsgTypes::ServerACK;
+				client->Send(ack);
+			}
 		}
 		break;
 		}

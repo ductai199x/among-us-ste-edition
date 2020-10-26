@@ -1,6 +1,6 @@
 #define OLC_PGE_APPLICATION
 #include <iostream>
-#include <olc_net.h>
+#include "networking/olc_net.h"
 #include "olcPixelGameEngine.h"
 #include "MessageTypes.h"
 #include "helper/json.hpp"
@@ -33,9 +33,13 @@ public:
 	{
 		olc::net::message<MsgTypes> msg;
 		msg.header.id = MsgTypes::ClientUpdateGS;
-		// std::string s = updates.dump();
-		std::string s = "1234";
-		msg << s;
+		std::string s = updates.dump();
+		uint32_t length = s.length();
+		std::cout << length << "\n";
+		for (char const &c : s)
+		{
+			msg << c;
+		}
 		Send(msg);
 	}
 };
@@ -62,17 +66,17 @@ public:
 		// 	for (int y = 0; y < ScreenHeight(); y++)
 		// 		Draw(x, y, olc::Pixel(rand() % 255, rand() % 255, rand()% 255));
 
-
 		if (GetKey(olc::Key::A).bReleased)
 			c.Connect("127.0.0.1", 60000);
 		if (GetKey(olc::Key::S).bReleased)
 			c.PingServer();
 
 		json gs_updates;
-		gs_updates["gamestate1"] = "updated";
+		gs_updates["game_state1"] = "updated";
+		gs_updates["game_state2"] = "updated2";
 		if (GetKey(olc::Key::D).bReleased)
 			c.UpdateGameState(gs_updates);
-		
+
 		if (c.IsConnected())
 		{
 			if (!c.Incoming().empty())
@@ -110,7 +114,7 @@ public:
 				case MsgTypes::ServerACK:
 				{
 					// Server has ACKed
-					std::cout << "Server ACKed";
+					std::cout << "Server ACKed\n";
 				}
 				break;
 				}

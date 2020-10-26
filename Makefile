@@ -10,7 +10,7 @@ BUILD_DIR ?= ./build
 # OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 # DEPS := $(OBJS:.o=.d)
 
-INC_DIRS := ./networking ./pgex
+INC_DIRS := ./networking ./pgex ./helper
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 CPPFLAGS ?= $(INC_FLAGS)
@@ -19,11 +19,11 @@ CXXFLAGS ?= -lX11 -lGL -lpthread -lpng -lstdc++fs -std=c++17
 
 .PHONY: clean client server all
 
-client: SimpleClient.cpp
+client: Client.cpp
 	$(MKDIR_P) $(dir $@)
 	$(CXX) $(CPPFLAGS) $< $(CXXFLAGS) -o $(CLIENT_EXEC)
 
-server: SimpleServer.cpp
+server: Server.cpp
 	$(MKDIR_P) $(dir $@)
 	$(CXX) $(CPPFLAGS) $< $(CXXFLAGS) -o $(SERVER_EXEC)
 

@@ -1,152 +1,95 @@
 
-
-#include <string>
-#include <iostream>
-#include <iomanip>
-#include <unordered_map>
-#include <variant>
 #include "networking/olc_net.h"
-#include "MessageTypes.h"
-#include "helper/json.hpp"
+#include "helper/helper.h"
 
 using json = nlohmann::json;
 
-class GameInstance
-{
+class Server : public olc::net::server_interface<MsgTypes> {
 public:
-	GameInstance()
-	{
-		database["game_state1"] = 1;
-		database["game_state2"] = 2.5;
-		database["game_state3"] = {1, 2, 3, 4};
-	}
-	~GameInstance()
-	{
-		database.clear();
-	}
+    Server(uint16_t nPort) : olc::net::server_interface<MsgTypes>(nPort) {
+    }
 
-	bool UpdateDatabase(json updates)
-	{
-		for (auto &[key, value] : updates.items())
-		{
-			std::cout << "Updating: " << key << " : " << value << std::endl;
-			if (database.contains(key))
-			{
-				database[key] = value;
-			}
-			else
-			{
-				std::cout << key << " does not exist in database" << std::endl;
-			}
-		}
-		return true;
-	}
-
-	void PrintDatabase()
-	{
-		std::cout << std::setw(4) << database << std::endl;
-	}
-
-private:
-	json database;
-};
-
-class Server : public olc::net::server_interface<MsgTypes>
-{
-public:
-	Server(uint16_t nPort) : olc::net::server_interface<MsgTypes>(nPort)
-	{
-	}
-
-	bool CreateNewGameInstance()
-	{
-		gameInstance.PrintDatabase();
-
-		return true;
-	}
+    bool CreateNewGameInstance() {
+        gameInstance.PrintDatabase();
+        return true;
+    }
 
 protected:
-	virtual bool OnClientConnect(std::shared_ptr<olc::net::connection<MsgTypes>> client)
-	{
-		olc::net::message<MsgTypes> msg;
-		msg.header.id = MsgTypes::ServerAccept;
-		client->Send(msg);
-		return true;
-	}
+    virtual bool OnClientConnect(std::shared_ptr<olc::net::connection<MsgTypes>> client) {
+        olc::net::message<MsgTypes> msg;
+        msg.header.type = MsgTypes::ServerAccept;
+        client->Send(msg);
+        return true;
+    }
 
-	// Called when a client appears to have disconnected
-	virtual void OnClientDisconnect(std::shared_ptr<olc::net::connection<MsgTypes>> client)
-	{
-		std::cout << "Removing client [" << client->GetID() << "]\n";
-	}
+    // Called when a client appears to have disconnected
+    virtual void OnClientDisconnect(std::shared_ptr<olc::net::connection<MsgTypes>> client) {
+        std::cout << "Removing client [" << client->GetID() << "]\n";
+    }
 
-	// Called when a message arrives
-	virtual void OnMessage(std::shared_ptr<olc::net::connection<MsgTypes>> client, olc::net::message<MsgTypes> &msg)
-	{
-		switch (msg.header.id)
-		{
-		case MsgTypes::ServerPing:
-		{
-			std::cout << "[" << client->GetID() << "]: Server Ping\n";
+    // Called when a message arrives
+    virtual void OnMessage(std::shared_ptr<olc::net::connection<MsgTypes>> client, olc::net::message<MsgTypes> &msg) {
+        switch (msg.header.type) {
+            case MsgTypes::ServerPing: {
+                std::cout << "[" << client->GetID() << "]: Server Ping\n";
+                client->Send(msg);
+                break;
+            }
 
-			// Simply bounce message back to client
-			client->Send(msg);
-		}
-		break;
+            case MsgTypes::MessageAll: {
+                std::cout << "[" << client->GetID() << "]: Message All\n";
+                olc::net::message<MsgTypes> msg;
+                msg.header.type = MsgTypes::ServerMessage;
+                msg << client->GetID();
+                MessageAllClients(msg, client);
+                break;
+            }
 
-		case MsgTypes::MessageAll:
-		{
-			std::cout << "[" << client->GetID() << "]: Message All\n";
-
-			// Construct a new message and send it to all clients
-			olc::net::message<MsgTypes> msg;
-			msg.header.id = MsgTypes::ServerMessage;
-			msg << client->GetID();
-			MessageAllClients(msg, client);
-		}
-		break;
-
-		case MsgTypes::ClientUpdateGS:
-		{
-			std::cout << "[" << client->GetID() << "]: ClientUpdateGS\n";
-			std::vector<char> rcvBuf;
-			uint32_t messageLength = msg.header.size;
-			std::cout << messageLength << "\n";
-			for (int i = 0; i < messageLength; i++)
-			{
-				char c;
-				msg >> c;
-				rcvBuf.push_back(c);
-			}
-			std::reverse(std::begin(rcvBuf), std::end(rcvBuf));
-			std::string s(rcvBuf.begin(), rcvBuf.end());
-			auto updates = json::parse(s);
-			if (gameInstance.UpdateDatabase(updates))
-			{
-				gameInstance.PrintDatabase();
-				olc::net::message<MsgTypes> ack;
-				ack.header.id = MsgTypes::ServerACK;
-				client->Send(ack);
-			}
-		}
-		break;
-		}
-	}
+            case MsgTypes::ClientUpdateGS: {
+                std::cout << "[" << client->GetID() << "]: ClientUpdateGS\n";
+                // Get message length
+                uint32_t messageLength = msg.header.size;
+                // Initialize a char buffer to store the message's chars
+                std::vector<char> rcvBuf;
+                // Initialize a new message to send to all other connecting clients
+                olc::net::message<MsgTypes> msg_all;
+                msg_all.header.type = MsgTypes::ServerUpdateGS;
+                // Unpack message into the char buffer
+                char c;
+                for (int i = 0; i < messageLength; i++) {
+                    msg >> c;
+                    msg_all << c;
+                    rcvBuf.push_back(c);
+                }
+                // Parse json
+                auto updates = json::parse(rcvBuf);
+                // Update the database
+                if (gameInstance.UpdateDatabase(updates)) {
+                    gameInstance.PrintDatabase();
+                    olc::net::message<MsgTypes> ack;
+                    ack.header.type = MsgTypes::ServerACK;
+                    ack.header.id = msg.header.id;
+                    client->Send(ack);
+                    // Update game states of all other clients
+                    MessageAllClients(msg_all, client);
+                }
+                break;
+            }
+        }
+    }
 
 private:
-	GameInstance gameInstance;
+    GameInstance gameInstance;
 };
 
-int main()
-{
-	Server server(60000);
-	server.Start();
-	server.CreateNewGameInstance();
+int main() {
+    Server server(60000);
+    server.Start();
+    server.CreateNewGameInstance();
 
-	while (1)
-	{
-		server.Update(-1, true);
-	}
+    while (1) {
+        server.Update(-1, true);
+    }
 
-	return 0;
+    return 0;
 }

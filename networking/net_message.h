@@ -50,7 +50,7 @@
 
 	Author
 	~~~~~~
-	David Barr, aka javidx9, �OneLoneCoder 2019, 2020
+	David Barr, aka javidx9, OneLoneCoder 2019, 2020
 
 */
 
@@ -68,7 +68,8 @@ namespace olc
 		template <typename T>
 		struct message_header
 		{
-			T id{};
+			T type{};
+			uint16_t id = 0;
 			uint32_t size = 0;
 		};
 

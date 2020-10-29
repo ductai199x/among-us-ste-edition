@@ -11,6 +11,7 @@ enum class MsgTypes
     ServerACK,
     ClientTextMessage,
     ClientUpdateGS,
+    ServerUpdateGS,
 };
 
 #endif

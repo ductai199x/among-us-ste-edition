@@ -79,8 +79,8 @@ public:
 
                 switch (incoming_msg.header.type) {
                     case MsgTypes::ServerAccept: {
-                        std::cout << "Server Accepted Connection. Send back an acknowledgement.\n";
-                        c.AcceptSeverConnection();
+//                        std::cout << "Server Accepted Connection. Send back an acknowledgement.\n";
+//                        c.AcceptSeverConnection();
                         break;
                     }
                     case MsgTypes::ServerPing: {
@@ -91,10 +91,10 @@ public:
                         break;
                     }
                     case MsgTypes::ClientPing: {
-                        std:: cout << j << " LUL\n";
-                        if (j < 1)
-                            c.Send(incoming_msg);
-                        j++;
+//                        std:: cout << j << " LUL\n";
+//                        if (j < 1)
+//                            c.Send(incoming_msg);
+//                        j++;
                         break;
                     }
                     case MsgTypes::ServerMessage: {

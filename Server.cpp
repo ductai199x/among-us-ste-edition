@@ -39,7 +39,6 @@ protected:
 
     void checkClientConnStatus(const std::shared_ptr<asio::steady_timer>& t, std::shared_ptr<olc::net::connection<MsgTypes>> client)
     {
-
         uint32_t u_ID = client->GetID();
         std::string s_ID = std::to_string(u_ID);
         ConnectionStatus status = clientStatus[s_ID][0];
@@ -54,7 +53,7 @@ protected:
                     client->Disconnect();
                     client.reset();
                     timersContainer.erase(u_ID);
-                    connectionsContainer.erase(u_ID);
+//                    connectionsContainer.erase(u_ID);
                 } else {
                     count++;
                     clientStatus[s_ID][1] = count;
@@ -71,9 +70,8 @@ protected:
                     // If client timeout, disconnect from this client and remove it from the database
                     OnClientDisconnect(client);
                     client->Disconnect();
-                    client.reset();
                     timersContainer.erase(u_ID);
-                    connectionsContainer.erase(u_ID);
+//                    connectionsContainer.erase(u_ID);
                 } else {
                     t->expires_at(t->expiry() + asio::chrono::seconds(CLIENT_PING_INTERVAL));
                     t->async_wait(std::bind(&Server::checkClientConnStatus, this, t, client));
@@ -101,11 +99,12 @@ protected:
     }
 
     virtual bool OnClientConnect(std::shared_ptr<olc::net::connection<MsgTypes>> client) {
+        uint32_t clientID = client->GetID();
+
         // Create a message saying we accept client's connection attempt
         olc::net::message<MsgTypes> msg;
         msg.header.type = MsgTypes::ServerAccept;
         client->Send(msg);
-        uint32_t clientID = client->GetID();
 
         // Add new client ID to the client status json map. The value contains: ConnectionStatus, # of unsuccessful
         // pings, last recorded ping duration

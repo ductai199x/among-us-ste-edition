@@ -4,15 +4,14 @@
 #include "helper/helper.h"
 #include "helper/olcPixelGameEngine.h"
 
+using chrono_clock = std::chrono::steady_clock;
+
 class Client : public olc::net::client_interface<MsgTypes> {
 public:
     void PingServer() {
         olc::net::message<MsgTypes> msg;
         msg.header.type = MsgTypes::ServerPing;
-
-        // Caution with this...
-        std::chrono::steady_clock::time_point timeNow = std::chrono::steady_clock::now();
-
+        timeNow = chrono_clock::now();
         msg << timeNow;
         Send(msg);
     }
@@ -33,6 +32,14 @@ public:
         }
         Send(msg);
     }
+
+    void AcceptSeverConnection() {
+        olc::net::message<MsgTypes> msg;
+        msg.header.type = MsgTypes::ClientAccept;
+        Send(msg);
+    }
+
+    chrono_clock::time_point timeNow;
 };
 
 class Example : public olc::PixelGameEngine {
@@ -42,6 +49,8 @@ public:
     }
 
 public:
+    int j = 0;
+
     bool OnUserCreate() override {
         // Called once at the start, so create things here
         return true;
@@ -64,42 +73,48 @@ public:
         if (GetKey(olc::Key::D).bReleased)
             c.UpdateGameState(gs_updates);
 
+
+
         if (c.IsConnected()) {
             if (!c.Incoming().empty()) {
-                auto msg = c.Incoming().pop_front().msg;
+                auto incoming_msg = c.Incoming().pop_front().msg;
 
-                switch (msg.header.type) {
+                switch (incoming_msg.header.type) {
                     case MsgTypes::ServerAccept: {
-                        std::cout << "Server Accepted Connection\n";
+                        std::cout << "Server Accepted Connection. Send back an acknowledgement.\n";
+                        c.AcceptSeverConnection();
                         break;
                     }
-
                     case MsgTypes::ServerPing: {
-                        std::chrono::steady_clock::time_point timeNow = std::chrono::steady_clock::now();
-                        std::chrono::steady_clock::time_point timeThen;
-                        msg >> timeThen;
-                        std::cout << "Ping: " << std::chrono::duration<double>(timeNow - timeThen).count() << "\n";
+                        c.timeNow = chrono_clock::now();
+                        chrono_clock::time_point timeThen;
+                        incoming_msg >> timeThen;
+                        std::cout << "Ping: " << std::chrono::duration<double>(c.timeNow - timeThen).count() << "\n";
                         break;
                     }
-
+                    case MsgTypes::ClientPing: {
+                        std:: cout << j << " LUL\n";
+                        if (j < 4)
+                            c.Send(incoming_msg);
+                        j++;
+                        break;
+                    }
                     case MsgTypes::ServerMessage: {
                         uint32_t clientID;
-                        msg >> clientID;
+                        incoming_msg >> clientID;
                         std::cout << "Hello from [" << clientID << "]\n";
                         break;
                     }
-
                     case MsgTypes::ServerACK: {
                         std::cout << "Server ACKed\n";
                         break;
                     }
-
                     case MsgTypes::ServerUpdateGS: {
-                        uint32_t messageLength = msg.header.size;
+                        uint32_t messageLength = incoming_msg.header.size;
                         std::vector<char> rcvBuf;
                         char c;
                         for (int i = 0; i < messageLength; i++) {
-                            msg >> c;
+                            incoming_msg >> c;
                             rcvBuf.push_back(c);
                         }
                         std::reverse(std::begin(rcvBuf), std::end(rcvBuf));
@@ -111,6 +126,18 @@ public:
                         }
                         break;
                     }
+                    case MsgTypes::ServerDeny:
+                        break;
+                    case MsgTypes::ClientAccept:
+                        break;
+                    case MsgTypes::ClientDeny:
+                        break;
+                    case MsgTypes::MessageAll:
+                        break;
+                    case MsgTypes::ClientTextMessage:
+                        break;
+                    case MsgTypes::ClientUpdateGS:
+                        break;
                 }
             }
         } else {
@@ -124,6 +151,7 @@ public:
 
 private:
     GameInstance gameInstance;
+
 };
 
 int main() {

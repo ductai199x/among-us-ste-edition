@@ -11,7 +11,7 @@ public:
     void PingServer() {
         olc::net::message<MsgTypes> msg;
         msg.header.type = MsgTypes::ServerPing;
-        timeNow = chrono_clock::now();
+        chrono_clock::time_point timeNow = chrono_clock::now();
         msg << timeNow;
         Send(msg);
     }
@@ -38,8 +38,6 @@ public:
         msg.header.type = MsgTypes::ClientAccept;
         Send(msg);
     }
-
-    chrono_clock::time_point timeNow;
 };
 
 class Example : public olc::PixelGameEngine {
@@ -86,15 +84,15 @@ public:
                         break;
                     }
                     case MsgTypes::ServerPing: {
-                        c.timeNow = chrono_clock::now();
+                        chrono_clock::time_point timeNow = chrono_clock::now();
                         chrono_clock::time_point timeThen;
                         incoming_msg >> timeThen;
-                        std::cout << "Ping: " << std::chrono::duration<double>(c.timeNow - timeThen).count() << "\n";
+                        std::cout << "Ping: " << std::chrono::duration<double>(timeNow - timeThen).count() << "\n";
                         break;
                     }
                     case MsgTypes::ClientPing: {
                         std:: cout << j << " LUL\n";
-                        if (j < 4)
+                        if (j < 1)
                             c.Send(incoming_msg);
                         j++;
                         break;

@@ -9,6 +9,7 @@ class Server : public olc::net::server_interface<MsgTypes> {
 public:
     explicit Server(uint16_t nPort) : olc::net::server_interface<MsgTypes>(nPort) {
         CreateNewGameInstance();
+
         clientStatusLock = std::unique_lock<std::mutex>(clientStatusMux, std::defer_lock);
 
         // Make a dummy work that track the context's work :) so that the context never expires automatically
@@ -38,11 +39,12 @@ protected:
 
     void checkClientConnStatus(const std::shared_ptr<asio::steady_timer>& t, std::shared_ptr<olc::net::connection<MsgTypes>> client)
     {
-        clientStatusLock.lock();
+
         uint32_t u_ID = client->GetID();
         std::string s_ID = std::to_string(u_ID);
         ConnectionStatus status = clientStatus[s_ID][0];
         int count = clientStatus[s_ID][1];
+        clientStatusLock.lock();
         switch (status) {
             case ConnectionStatus::Waiting: {
                 if (count > MAX_TIME_CLIENT_ACCEPT) {
@@ -62,6 +64,8 @@ protected:
                 break;
             }
             case ConnectionStatus::Live: {
+                if (count > 0)
+                    std::cout << "Client[" << u_ID << "] has not answered back " << count << " times\n";
                 if (count > MAX_FAIL_PINGS) {
                     clientStatus[s_ID][0] = ConnectionStatus::Dead;
                     // If client timeout, disconnect from this client and remove it from the database
@@ -71,8 +75,6 @@ protected:
                     timersContainer.erase(u_ID);
                     connectionsContainer.erase(u_ID);
                 } else {
-                    if (count > 0)
-                        std::cout << "Client[" << u_ID << "] has not answered back " << count << " times\n";
                     t->expires_at(t->expiry() + asio::chrono::seconds(CLIENT_PING_INTERVAL));
                     t->async_wait(std::bind(&Server::checkClientConnStatus, this, t, client));
                     clientStatus[s_ID][1] = ++count;
@@ -93,7 +95,7 @@ protected:
     void pingClient(uint32_t clientID) {
         olc::net::message<MsgTypes> msg;
         msg.header.type = MsgTypes::ClientPing;
-        timeNow = chrono_clock::now();
+        chrono_clock::time_point timeNow = chrono_clock::now();
         msg << timeNow;
         connectionsContainer[clientID]->Send(msg);
     }
@@ -135,7 +137,7 @@ protected:
                 break;
             }
             case MsgTypes::ClientPing: {
-                timeNow = chrono_clock::now();
+                chrono_clock::time_point timeNow = chrono_clock::now();
                 chrono_clock::time_point timeThen;
                 incoming_msg >> timeThen;
                 double dur =  std::chrono::duration<double>(timeNow - timeThen).count();
@@ -210,7 +212,6 @@ private:
     std::thread timerContextThread;
     asio::any_io_executor timerDummyWork;
     std::unordered_map<uint32_t, std::shared_ptr<asio::steady_timer>> timersContainer;
-    chrono_clock::time_point timeNow;
 };
 
 int main() {

@@ -1,9 +1,14 @@
 ﻿#define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
 #include "json.hpp"
+#include <iostream>
+#include <fstream>
+#include <string>
 
 // For convenience 
 using json = nlohmann::json;
+namespace fs = std::experimental::filesystem;
+using namespace std;
 
 class olcDungeon : public olc::PixelGameEngine
 {
@@ -241,7 +246,6 @@ public:
 		}
 	}
 
-
 	bool OnUserUpdate(float fElapsedTime) override
 	{
 		// Grab mouse for convenience
@@ -306,9 +310,24 @@ public:
 		}
 		// Save Game 
 		if (GetKey(olc::Key::X).bPressed) {
+			// path variables
+			string dir = "C:/Users/nomie/Desktop/LevelCreator/maps/";
+			string extension = ".json";
+			string map = "map";
+
+			// Auto generate new map 
+			int numbMap = 1;
+			for (auto& p : fs::directory_iterator(dir)) {
+				numbMap++;
+			}
+			string pathname = dir + map + to_string(numbMap)+ extension;
+
+			// Open new file
 			json jsonfile;
 			std::ofstream file;
-			file.open("map.json", std::ios_base::app);
+			file.open(pathname, std::ios_base::app);
+
+			// Saving states of every pixels
 			for (int x_cursor = 0; x_cursor <= 63; x_cursor++) {
 				for (int y_cursor = 0; y_cursor <= 63; y_cursor++) {
 					if (world.GetCell({ x_cursor, y_cursor }).wall == true) {
@@ -324,6 +343,8 @@ public:
 					}
 				}
 			}
+
+			// Notify the user that the saving process is done 
 			DrawStringDecal({ 32,32 }, "Map is Saved", olc::YELLOW, { 0.5f, 0.5f });
 		}
 

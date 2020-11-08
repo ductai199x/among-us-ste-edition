@@ -40,121 +40,120 @@ public:
     }
 };
 
-class Example : public olc::PixelGameEngine {
+class AmongUsSTE : public olc::PixelGameEngine {
 public:
-    Example() {
+    AmongUsSTE() {
         sAppName = "Example";
     }
 
-public:
-    int j = 0;
-
     bool OnUserCreate() override {
         // Called once at the start, so create things here
+
+        // Start the network thread
+        networkThread = std::thread([this]() {
+            while (1) { handleNetworking(); }
+        });
+
+        netClient.Connect("127.0.0.1", 60000);
+
         return true;
     }
 
     bool OnUserUpdate(float fElapsedTime) override {
         // called once per frame
-        // for (int x = 0; x < ScreenWidth(); x++)
-        // 	for (int y = 0; y < ScreenHeight(); y++)
-        // 		Draw(x, y, olc::Pixel(rand() % 255, rand() % 255, rand()% 255));
 
         if (GetKey(olc::Key::A).bReleased)
-            c.Connect("127.0.0.1", 60000);
+            netClient.Connect("127.0.0.1", 60000);
         if (GetKey(olc::Key::S).bReleased)
-            c.PingServer();
+            netClient.PingServer();
 
-        json gs_updates;
-        gs_updates["game_state1"] = "updated";
-        gs_updates["game_state2"] = "updated2";
-        if (GetKey(olc::Key::D).bReleased)
-            c.UpdateGameState(gs_updates);
+//        json gs_updates;
+//        gs_updates["game_state1"] = "updated";
+//        gs_updates["game_state2"] = "updated2";
+//        if (GetKey(olc::Key::D).bReleased)
+//            netClient.UpdateGameState(gs_updates);
 
-
-
-        if (c.IsConnected()) {
-            if (!c.Incoming().empty()) {
-                auto incoming_msg = c.Incoming().pop_front().msg;
-
-                switch (incoming_msg.header.type) {
-                    case MsgTypes::ServerAccept: {
-//                        std::cout << "Server Accepted Connection. Send back an acknowledgement.\n";
-//                        c.AcceptSeverConnection();
-                        break;
-                    }
-                    case MsgTypes::ServerPing: {
-                        chrono_clock::time_point timeNow = chrono_clock::now();
-                        chrono_clock::time_point timeThen;
-                        incoming_msg >> timeThen;
-                        std::cout << "Ping: " << std::chrono::duration<double>(timeNow - timeThen).count() << "\n";
-                        break;
-                    }
-                    case MsgTypes::ClientPing: {
-//                        std:: cout << j << " LUL\n";
-//                        if (j < 1)
-//                            c.Send(incoming_msg);
-//                        j++;
-                        break;
-                    }
-                    case MsgTypes::ServerMessage: {
-                        uint32_t clientID;
-                        incoming_msg >> clientID;
-                        std::cout << "Hello from [" << clientID << "]\n";
-                        break;
-                    }
-                    case MsgTypes::ServerACK: {
-                        std::cout << "Server ACKed\n";
-                        break;
-                    }
-                    case MsgTypes::ServerUpdateGS: {
-                        uint32_t messageLength = incoming_msg.header.size;
-                        std::vector<char> rcvBuf;
-                        char c;
-                        for (int i = 0; i < messageLength; i++) {
-                            incoming_msg >> c;
-                            rcvBuf.push_back(c);
-                        }
-                        std::reverse(std::begin(rcvBuf), std::end(rcvBuf));
-                        // Parse json
-                        auto updates = json::parse(rcvBuf);
-                        // Update the database
-                        if (gameInstance.UpdateDatabase(updates)) {
-                            gameInstance.PrintDatabase();
-                        }
-                        break;
-                    }
-                    case MsgTypes::ServerDeny:
-                        break;
-                    case MsgTypes::ClientAccept:
-                        break;
-                    case MsgTypes::ClientDeny:
-                        break;
-                    case MsgTypes::MessageAll:
-                        break;
-                    case MsgTypes::ClientTextMessage:
-                        break;
-                    case MsgTypes::ClientUpdateGS:
-                        break;
-                }
-            }
-        } else {
-            // std::cout << "Server Down\n";
-        }
+        std::cout << "lmao\n";
+        std::this_thread::sleep_for(std::chrono::seconds(3));
 
         return true;
     }
 
-    Client c;
+protected:
+    void handleNetworking()
+    {
+        if (!netClient.IsConnected()) return;
+
+        netClient.Incoming().wait();
+
+        while (!netClient.Incoming().empty()) {
+            auto incoming_msg = netClient.Incoming().pop_front().msg;
+            switch (incoming_msg.header.type) {
+                case MsgTypes::ServerAccept: {
+                    std::cout << "Server Accepted Connection. Send back an acknowledgement.\n";
+                    netClient.AcceptSeverConnection();
+                    break;
+                }
+                case MsgTypes::ServerPing: {
+                    chrono_clock::time_point timeNow = chrono_clock::now();
+                    chrono_clock::time_point timeThen;
+                    incoming_msg >> timeThen;
+                    std::cout << "Ping: " << std::chrono::duration<double>(timeNow - timeThen).count() << "\n";
+                    break;
+                }
+                case MsgTypes::ClientPing: {
+                    netClient.Send(incoming_msg);
+                    break;
+                }
+                case MsgTypes::ServerMessage: {
+                    uint32_t clientID;
+                    incoming_msg >> clientID;
+                    std::cout << "Hello from [" << clientID << "]\n";
+                    break;
+                }
+                case MsgTypes::ServerACK: {
+                    std::cout << "Server ACKed\n";
+                    break;
+                }
+                case MsgTypes::ServerUpdateGS: {
+                    uint32_t messageLength = incoming_msg.header.size;
+                    std::vector<char> rcvBuf;
+                    char c;
+                    for (int i = 0; i < messageLength; i++) {
+                        incoming_msg >> c;
+                        rcvBuf.push_back(c);
+                    }
+                    std::reverse(std::begin(rcvBuf), std::end(rcvBuf));
+                    // Parse json
+                    auto updates = json::parse(rcvBuf);
+                    // Update the database
+                    if (gameInstance.UpdateDatabase(updates)) {
+                        gameInstance.PrintDatabase();
+                    }
+                    break;
+                }
+                case MsgTypes::ServerDeny:
+                    break;
+                case MsgTypes::ClientTextMessage:
+                    break;
+            }
+        }
+    }
+
 
 private:
+    Client netClient;
     GameInstance gameInstance;
 
+    // asio context handles the data transfer...
+//    asio::io_context networkContext;
+    // ...but needs a thread of its own to execute its work commands
+    std::thread networkThread;
 };
 
 int main() {
-    Example demo;
-    if (demo.Construct(256, 240, 2, 2))
-        demo.Start();
+    AmongUsSTE game;
+    if (game.Construct(256, 240, 1, 1))
+        game.Start();
     return 0;
 }

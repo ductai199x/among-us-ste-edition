@@ -73,7 +73,7 @@ protected:
                     timersContainer.erase(u_ID);
 //                    connectionsContainer.erase(u_ID);
                 } else {
-                    t->expires_at(t->expiry() + asio::chrono::seconds(CLIENT_PING_INTERVAL));
+                    t->expires_at(t->expiry() + asio::chrono::milliseconds(CLIENT_PING_INTERVAL));
                     t->async_wait(std::bind(&Server::checkClientConnStatus, this, t, client));
                     clientStatus[s_ID][1] = ++count;
                     pingClient(u_ID);

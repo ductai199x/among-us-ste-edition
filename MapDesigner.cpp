@@ -1,11 +1,9 @@
 #define OLC_PGE_APPLICATION
-
-#include "networking/olc_net.h"
-#include "helper/helper.h"
+#include "helper/json.hpp"
 #include "helper/olcPixelGameEngine.h"
 
 using chrono_clock = std::chrono::steady_clock;
-
+using json = nlohmann::json;
 
 namespace olc {
     struct vec3d { float x, y, z; };
@@ -19,7 +17,7 @@ namespace olc {
 	struct sCell
 	{
 		bool wall = false;
-		olc::vi2d id[6]{  };
+		olc::vi2d id[6]{};
 	};
 
     class World
@@ -58,50 +56,18 @@ namespace olc {
 		West = 4,
 		Top = 5
 	};
+
+	std::vector<std::string> Face_s = {"0", "1", "2", "3", "4", "5"};
 }
 
-
-
-class Client : public olc::net::client_interface<MsgTypes> {
+class MapDesigner : public olc::PixelGameEngine {
 public:
-    void PingServer() {
-        olc::net::message<MsgTypes> msg;
-        msg.header.type = MsgTypes::ServerPing;
-        chrono_clock::time_point timeNow = chrono_clock::now();
-        msg << timeNow;
-        Send(msg);
+    MapDesigner() {
+        sAppName = "Among Us STE Map Designer";
     }
 
-    void MessageAll() {
-        olc::net::message<MsgTypes> msg;
-        msg.header.type = MsgTypes::MessageAll;
-        Send(msg);
-    }
-
-    void UpdateGameState(json &updates) {
-        olc::net::message<MsgTypes> msg;
-        msg.header.type = MsgTypes::ClientUpdateGS;
-        msg.header.id = random();
-        std::string s = updates.dump();
-        for (auto it = s.crbegin(); it != s.crend(); ++it) {
-            msg << *it;
-        }
-        Send(msg);
-    }
-
-    void AcceptSeverConnection() {
-        olc::net::message<MsgTypes> msg;
-        msg.header.type = MsgTypes::ClientAccept;
-        Send(msg);
-    }
-};
-
-class AmongUsSTE : public olc::PixelGameEngine {
-public:
-    AmongUsSTE() {
-        sAppName = "Example";
-    }
-
+protected:
+	json mapDict;
     olc::World world;
 	olc::Renderable rendSelect;
 	olc::Renderable rendAllWalls;
@@ -119,33 +85,7 @@ public:
 	olc::vi2d vTileSize = { 32, 32 };
     olc::vi2d mapSize = {64, 64};
 
-    bool OnUserCreate() override {
-        // Called once at the start, so create things here
-
-        // Start the network thread
-        networkThread = std::thread([this]() {
-            while (1) { handleNetworking(); }
-        });
-
-        netClient.Connect("127.0.0.1", 60000);
-
-        rendAllWalls.Load("./assets/32x32.png");
-		world.Create(mapSize.x, mapSize.y);
-
-        for (int y = 0; y < world.size.y; y++)
-			for (int x = 0; x < world.size.x; x++)
-			{
-				world.GetCell({ x, y }).wall = false;
-				world.GetCell({ x, y }).id[olc::Face::Floor] = olc::vi2d{ 3, 1 } *vTileSize;
-				world.GetCell({ x, y }).id[olc::Face::Top] = olc::vi2d{ 0, 0 } *vTileSize;
-				world.GetCell({ x, y }).id[olc::Face::North] = olc::vi2d{ 0, 0 } *vTileSize;
-				world.GetCell({ x, y }).id[olc::Face::South] = olc::vi2d{ 0, 0 } *vTileSize;
-				world.GetCell({ x, y }).id[olc::Face::West] = olc::vi2d{ 0, 0 } *vTileSize;
-				world.GetCell({ x, y }).id[olc::Face::East] = olc::vi2d{ 0, 0 } *vTileSize;
-			}
-
-        return true;
-    }
+	std::string cursorId;
 
     std::array<olc::vec3d, 8> CreateCube(const olc::vi2d& vCell, const float fAngle, const float fPitch, const float fScale, const olc::vec3d& vCamera)
 	{
@@ -243,10 +183,124 @@ public:
 		}
 	}
 
+public:
+	bool OnUserCreate() override {
+        rendAllWalls.Load("./assets/32x32.png");
+		world.Create(mapSize.x, mapSize.y);
+
+        mapDict["mapSize"] = { mapSize.x, mapSize.y };
+
+        for (int y = 0; y < world.size.y; y++)
+			for (int x = 0; x < world.size.x; x++)
+			{
+				world.GetCell({ x, y }).wall = false;
+				world.GetCell({ x, y }).id[olc::Face::Floor] = olc::vi2d{ 3, 1 } *vTileSize;
+				world.GetCell({ x, y }).id[olc::Face::Top] = olc::vi2d{ 0, 0 } *vTileSize;
+				world.GetCell({ x, y }).id[olc::Face::North] = olc::vi2d{ 0, 0 } *vTileSize;
+				world.GetCell({ x, y }).id[olc::Face::South] = olc::vi2d{ 0, 0 } *vTileSize;
+				world.GetCell({ x, y }).id[olc::Face::West] = olc::vi2d{ 0, 0 } *vTileSize;
+				world.GetCell({ x, y }).id[olc::Face::East] = olc::vi2d{ 0, 0 } *vTileSize;
+			}
+
+        return true;
+    }
 
     bool OnUserUpdate(float fElapsedTime) override {
         // called once per frame
-        
+        // Grab mouse for convenience
+		olc::vi2d vMouse = { GetMouseX(), GetMouseY() };
+
+		// Translate cursor position to string id:
+		cursorId = std::to_string(vCursor.y + vCursor.x*mapSize.x); 
+
+		// Edit mode - Selection from tile sprite sheet
+		if (GetKey(olc::Key::TAB).bHeld)
+		{
+			DrawSprite({ 0, 0 }, rendAllWalls.Sprite());
+			DrawRect(vTileCursor * vTileSize, vTileSize);
+			if (GetMouse(0).bPressed) vTileCursor = vMouse / vTileSize;
+			return true;
+		}
+
+		// WS keys to tilt camera
+		if (GetKey(olc::Key::W).bHeld) fCameraPitch += 1.0f * fElapsedTime;
+		if (!GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::S).bHeld) fCameraPitch -= 1.0f * fElapsedTime;
+
+		// DA Keys to manually rotate camera
+		if (GetKey(olc::Key::D).bHeld) fCameraAngleTarget += 1.0f * fElapsedTime;
+		if (GetKey(olc::Key::A).bHeld) fCameraAngleTarget -= 1.0f * fElapsedTime;
+
+		// QZ Keys to zoom in or out
+		if (GetKey(olc::Key::Q).bHeld) fCameraZoom += 5.0f * fElapsedTime;
+		if (GetKey(olc::Key::Z).bHeld) fCameraZoom -= 5.0f * fElapsedTime;
+
+		// Numpad keys used to rotate camera to fixed angles
+		if (GetKey(olc::Key::NP2).bPressed) fCameraAngleTarget = 3.14159f * 0.0f;
+		if (GetKey(olc::Key::NP1).bPressed) fCameraAngleTarget = 3.14159f * 0.25f;
+		if (GetKey(olc::Key::NP4).bPressed) fCameraAngleTarget = 3.14159f * 0.5f;
+		if (GetKey(olc::Key::NP7).bPressed) fCameraAngleTarget = 3.14159f * 0.75f;
+		if (GetKey(olc::Key::NP8).bPressed) fCameraAngleTarget = 3.14159f * 1.0f;
+		if (GetKey(olc::Key::NP9).bPressed) fCameraAngleTarget = 3.14159f * 1.25f;
+		if (GetKey(olc::Key::NP6).bPressed) fCameraAngleTarget = 3.14159f * 1.5f;
+		if (GetKey(olc::Key::NP3).bPressed) fCameraAngleTarget = 3.14159f * 1.75f;
+
+		// Numeric keys apply selected tile to specific face
+		olc::vi2d vSpriteTileSelect = vTileCursor * vTileSize;
+		if (GetKey(olc::Key::K1).bPressed) {
+			world.GetCell(vCursor).id[olc::Face::North] = vSpriteTileSelect;
+			mapDict[cursorId][olc::Face_s[olc::Face::North]] = {vSpriteTileSelect.x, vSpriteTileSelect.y};
+		}
+		if (GetKey(olc::Key::K2).bPressed) {
+			world.GetCell(vCursor).id[olc::Face::East] = vSpriteTileSelect;
+			mapDict[cursorId][olc::Face_s[olc::Face::East]] = {vSpriteTileSelect.x, vSpriteTileSelect.y};
+		}
+		if (GetKey(olc::Key::K3).bPressed) {
+			world.GetCell(vCursor).id[olc::Face::South] = vTileCursor * vTileSize;
+			mapDict[cursorId][olc::Face_s[olc::Face::South]] = {vSpriteTileSelect.x, vSpriteTileSelect.y};
+		}
+		if (GetKey(olc::Key::K4).bPressed) {
+			world.GetCell(vCursor).id[olc::Face::West] = vTileCursor * vTileSize;
+			mapDict[cursorId][olc::Face_s[olc::Face::West]] = {vSpriteTileSelect.x, vSpriteTileSelect.y};
+		}
+		if (GetKey(olc::Key::K5).bPressed) {
+			world.GetCell(vCursor).id[olc::Face::Floor] = vTileCursor * vTileSize;
+			mapDict[cursorId][olc::Face_s[olc::Face::Floor]] = {vSpriteTileSelect.x, vSpriteTileSelect.y};
+		}
+		if (GetKey(olc::Key::K6).bPressed) {
+			world.GetCell(vCursor).id[olc::Face::Top] = vTileCursor * vTileSize;
+			mapDict[cursorId][olc::Face_s[olc::Face::Top]] = {vSpriteTileSelect.x, vSpriteTileSelect.y};
+		}
+
+		// Smooth camera
+		fCameraAngle += (fCameraAngleTarget - fCameraAngle) * 10.0f * fElapsedTime;
+
+		// Arrow keys to move the selection cursor around map (boundary checked)
+		if (GetKey(olc::Key::LEFT).bPressed) vCursor.x--;
+		if (GetKey(olc::Key::RIGHT).bPressed) vCursor.x++;
+		if (GetKey(olc::Key::UP).bPressed) vCursor.y--;
+		if (GetKey(olc::Key::DOWN).bPressed) vCursor.y++;
+		if (vCursor.x < 0) vCursor.x = 0;
+		if (vCursor.y < 0) vCursor.y = 0;
+		if (vCursor.x >= world.size.x) vCursor.x = world.size.x - 1;
+		if (vCursor.y >= world.size.y) vCursor.y = world.size.y - 1;
+
+		// Place block with space
+		if (GetKey(olc::Key::SPACE).bPressed)
+		{
+			world.GetCell(vCursor).wall = !world.GetCell(vCursor).wall;
+			if (world.GetCell(vCursor).wall) {
+				mapDict[cursorId]["type"] = 1;
+				mapDict[cursorId][olc::Face_s[olc::Face::Floor]] = {0, 0};
+				mapDict[cursorId][olc::Face_s[olc::Face::North]] = {0, 0};
+				mapDict[cursorId][olc::Face_s[olc::Face::East]] = {0, 0};
+				mapDict[cursorId][olc::Face_s[olc::Face::South]] = {0, 0};
+				mapDict[cursorId][olc::Face_s[olc::Face::West]] = {0, 0};
+				mapDict[cursorId][olc::Face_s[olc::Face::Top]] = {0, 0};
+			} else {
+				mapDict.erase(cursorId);
+			}
+		}
+
         // Position camera in world		
 		vCameraPos = { vCursor.x + 0.5f, vCursor.y + 0.5f };
 		vCameraPos *= fCameraZoom;
@@ -295,83 +349,24 @@ public:
 		// 7) Draw some debug info
 		DrawStringDecal({ 0,0 }, "Cursor: " + std::to_string(vCursor.x) + ", " + std::to_string(vCursor.y), olc::YELLOW, { 0.5f, 0.5f });
 		DrawStringDecal({ 0,8 }, "Angle: " + std::to_string(fCameraAngle) + ", " + std::to_string(fCameraPitch), olc::YELLOW, { 0.5f, 0.5f });
-		DrawStringDecal({ 0,16 }, "Press X to save current map", olc::YELLOW, { 0.5f, 0.5f });
+		DrawStringDecal({ 0,16 }, mapDict.dump(), olc::YELLOW, { 0.5f, 0.5f });
+
+		// 8) Save the map onto the drive
+		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::C).bPressed) {
+			std::cout << "SAVING MAP...\n";
+			std::ofstream file;
+			file.open("./assets/map.json");
+			file << mapDict;
+		}
+
+
 		// Graceful exit if user is in full screen mode
 		return !GetKey(olc::Key::ESCAPE).bPressed;
     }
-
-protected:
-    void handleNetworking()
-    {
-        if (!netClient.IsConnected()) return;
-
-        netClient.Incoming().wait();
-
-        while (!netClient.Incoming().empty()) {
-            auto incoming_msg = netClient.Incoming().pop_front().msg;
-            switch (incoming_msg.header.type) {
-                case MsgTypes::ServerAccept: {
-                    std::cout << "Server Accepted Connection. Send back an acknowledgement.\n";
-                    netClient.AcceptSeverConnection();
-                    break;
-                }
-                case MsgTypes::ServerPing: {
-                    chrono_clock::time_point timeNow = chrono_clock::now();
-                    chrono_clock::time_point timeThen;
-                    incoming_msg >> timeThen;
-                    std::cout << "Ping: " << std::chrono::duration<double>(timeNow - timeThen).count() << "\n";
-                    break;
-                }
-                case MsgTypes::ClientPing: {
-                    netClient.Send(incoming_msg);
-                    break;
-                }
-                case MsgTypes::ServerMessage: {
-                    uint32_t clientID;
-                    incoming_msg >> clientID;
-                    std::cout << "Hello from [" << clientID << "]\n";
-                    break;
-                }
-                case MsgTypes::ServerACK: {
-                    std::cout << "Server ACKed\n";
-                    break;
-                }
-                case MsgTypes::ServerUpdateGS: {
-                    uint32_t messageLength = incoming_msg.header.size;
-                    std::vector<char> rcvBuf;
-                    char c;
-                    for (int i = 0; i < messageLength; i++) {
-                        incoming_msg >> c;
-                        rcvBuf.push_back(c);
-                    }
-                    std::reverse(std::begin(rcvBuf), std::end(rcvBuf));
-                    // Parse json
-                    auto updates = json::parse(rcvBuf);
-                    // Update the database
-                    if (gameInstance.UpdateDatabase(updates)) {
-                        gameInstance.PrintDatabase();
-                    }
-                    break;
-                }
-                case MsgTypes::ServerDeny:
-                    break;
-                case MsgTypes::ClientTextMessage:
-                    break;
-            }
-        }
-    }
-
-
-private:
-    Client netClient;
-    GameInstance gameInstance;
-    std::thread networkThread;
-
-    json game_map;
 };
 
 int main() {
-    AmongUsSTE game;
+    MapDesigner game;
     if (game.Construct(640, 480, 2, 2, false))
         game.Start();
     return 0;

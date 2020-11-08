@@ -23,8 +23,8 @@ client: Client.cpp helper/GameInstance.cpp
 server: Server.cpp helper/GameInstance.cpp
 	$(CXX) $(CPPFLAGS) $? $(SEVER_CXXFLAGS) -o $(SERVER_EXEC)
 
-program: olcExampleProgram.cpp
-	$(CXX) $(CPPFLAGS) $? $(CXXFLAGS) -o $(EXAMPLE_PROGRAM)
+program: MapDesigner.cpp
+	$(CXX) -I./helper $? $(CLIENT_CXXFLAGS) -o $(EXAMPLE_PROGRAM)
 
 clean:
 	$(RM) -rf *.o

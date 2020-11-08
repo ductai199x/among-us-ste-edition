@@ -3,39 +3,31 @@ SERVER_EXEC ?= server.o
 CLIENT_EXEC ?= client.o
 EXAMPLE_PROGRAM ?= program.o
 
-BUILD_DIR ?= ./build
-# SRC_DIRS ?= 
+HELPER_SOURCE := helper/GameInstance.cpp
 
-# SRCS := $(shell find $(SRC_DIRS) -name '*.h' -or -name '*.hpp' -or -name '*.cpp')
-# OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
-# DEPS := $(OBJS:.o=.d)
-
-INC_DIRS := ./networking ./pgex
+INC_DIRS := ./asio-1.18.0
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 CPPFLAGS ?= $(INC_FLAGS)
 
-CXXFLAGS ?= -lX11 -lGL -lpthread -lpng -lstdc++fs -std=c++17
+SEVER_CXXFLAGS ?= -lpthread -lstdc++fs -std=c++17
+CLIENT_CXXFLAGS ?= -lX11 -lGL -lpthread -lpng -lstdc++fs -std=c++17
 
 .PHONY: clean client server all
 
-client: SimpleClient.cpp
-	$(MKDIR_P) $(dir $@)
-	$(CXX) $(CPPFLAGS) $< $(CXXFLAGS) -o $(CLIENT_EXEC)
+default: server client
 
-server: SimpleServer.cpp
-	$(MKDIR_P) $(dir $@)
-	$(CXX) $(CPPFLAGS) $< $(CXXFLAGS) -o $(SERVER_EXEC)
+client: Client.cpp helper/GameInstance.cpp
+	$(CXX) $(CPPFLAGS) $? $(CLIENT_CXXFLAGS) -o $(CLIENT_EXEC)
+
+server: Server.cpp helper/GameInstance.cpp
+	$(CXX) $(CPPFLAGS) $? $(SEVER_CXXFLAGS) -o $(SERVER_EXEC)
 
 program: olcExampleProgram.cpp
-	echo $(INC_DIRS)
-	$(MKDIR_P) $(dir $@)
-	$(CXX) $(CPPFLAGS) $< $(CXXFLAGS) -o $(EXAMPLE_PROGRAM)
-
-
+	$(CXX) $(CPPFLAGS) $? $(CXXFLAGS) -o $(EXAMPLE_PROGRAM)
 
 clean:
-	$(RM) -r $(BUILD_DIR)
+	$(RM) -rf *.o
 
 -include $(DEPS)
 

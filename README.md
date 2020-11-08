@@ -3,13 +3,15 @@ Among Us Save-The-Environment Edition
 
 prior to running, on linux, install:
 
-sudo apt update
+On Ubuntu
 
-sudo apt upgrade
+`sudo apt-get install build-essential libglu1-mesa-dev libpng-dev libasound2-dev libboost1.71-all-dev`
 
-sudo apt-get install build-essential libglu1-mesa-dev libpng-dev libasound2-dev
+On Fedora
 
-also include the asio library into this project.
+`sudo dnf install mesa-libGL-devel libpng-devel alsa-lib-devel boost-devel`
+
+also include the `asio` library into this project.
 
 
 1. Database: live on the server, synced across all clients

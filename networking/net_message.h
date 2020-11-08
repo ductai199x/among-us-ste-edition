@@ -50,7 +50,7 @@
 
 	Author
 	~~~~~~
-	David Barr, aka javidx9, ©OneLoneCoder 2019, 2020
+	David Barr, aka javidx9, OneLoneCoder 2019, 2020
 
 */
 
@@ -68,7 +68,8 @@ namespace olc
 		template <typename T>
 		struct message_header
 		{
-			T id{};
+			T type{};
+			uint16_t id = 0;
 			uint32_t size = 0;
 		};
 
@@ -133,6 +134,8 @@ namespace olc
 
 				// Cache the location towards the end of the vector where the pulled data starts
 				size_t i = msg.body.size() - sizeof(DataType);
+
+				// std::cout << i << " " << msg.body.size() << " " << sizeof(DataType) << "\n";
 
 				// Physically copy the data from the vector into the user variable
 				std::memcpy(&data, msg.body.data() + i, sizeof(DataType));

@@ -50,7 +50,7 @@
 
 	Author
 	~~~~~~
-	David Barr, aka javidx9, ©OneLoneCoder 2019, 2020
+	David Barr, aka javidx9, OneLoneCoder 2019, 2020
 
 */
 
@@ -133,13 +133,15 @@ namespace olc
 						// Triggered by incoming connection request
 						if (!ec)
 						{
+						    //Increment the connection counter
+                            nIDCounter++;
 							// Display some useful(?) information
 							std::cout << "[SERVER] New Connection: " << socket.remote_endpoint() << "\n";
 
-							// Create a new connection to handle this client 
-							std::shared_ptr<connection<T>> newconn = 
-								std::make_shared<connection<T>>(connection<T>::owner::server, 
-									m_asioContext, std::move(socket), m_qMessagesIn);
+							// Create a new connection to handle this client
+                            std::shared_ptr<connection<T>> newconn =
+                                    std::make_shared<connection<T>>(connection<T>::owner::server,
+                                                                    m_asioContext, std::move(socket), m_qMessagesIn, nIDCounter);
 							
 							
 
@@ -147,13 +149,14 @@ namespace olc
 							if (OnClientConnect(newconn))
 							{								
 								// Connection allowed, so add to container of new connections
-								m_deqConnections.push_back(std::move(newconn));
+//								connectionsContainer.push_back(std::move(newconn));
+                                connectionsContainer.emplace(nIDCounter, newconn);
 
 								// And very important! Issue a task to the connection's
 								// asio context to sit and wait for bytes to arrive!
-								m_deqConnections.back()->ConnectToClient(nIDCounter++);
+                                connectionsContainer[nIDCounter]->ConnectToClient();
 
-								std::cout << "[" << m_deqConnections.back()->GetID() << "] Connection Approved\n";
+								std::cout << "[" << nIDCounter << "] Connection Approved. Waiting for client to accept\n";
 							}
 							else
 							{
@@ -190,48 +193,48 @@ namespace olc
 					// well remove the client - let the server know, it may
 					// be tracking it somehow
 					OnClientDisconnect(client);
-
 					// Off you go now, bye bye!
 					client.reset();
 
 					// Then physically remove it from the container
-					m_deqConnections.erase(
-						std::remove(m_deqConnections.begin(), m_deqConnections.end(), client), m_deqConnections.end());
+//					connectionsContainer.erase(
+//                            std::remove(connectionsContainer.begin(), connectionsContainer.end(), client), connectionsContainer.end());
+                    connectionsContainer.erase(client->GetID());
 				}
 			}
 			
 			// Send message to all clients
 			void MessageAllClients(const message<T>& msg, std::shared_ptr<connection<T>> pIgnoreClient = nullptr)
 			{
-				bool bInvalidClientExists = false;
+//				bool bInvalidClientExists = false;
 
 				// Iterate through all clients in container
-				for (auto& client : m_deqConnections)
+				auto conn_it = connectionsContainer.begin();
+				while (conn_it != connectionsContainer.end())
 				{
 					// Check client is connected...
-					if (client && client->IsConnected())
+					if (conn_it->second->IsConnected())
 					{
 						// ..it is!
-						if(client != pIgnoreClient)
-							client->Send(msg);
+						if(conn_it->second != pIgnoreClient)
+                            conn_it->second->Send(msg);
+						++conn_it;
 					}
 					else
 					{
 						// The client couldnt be contacted, so assume it has
 						// disconnected.
-						OnClientDisconnect(client);
-						client.reset();
-
-						// Set this flag to then remove dead clients from container
-						bInvalidClientExists = true;
+						OnClientDisconnect(conn_it->second);
+                        conn_it->second.reset();
+                        connectionsContainer.erase(conn_it++);
 					}
 				}
 
 				// Remove dead clients, all in one go - this way, we dont invalidate the
 				// container as we iterated through it.
-				if (bInvalidClientExists)
-					m_deqConnections.erase(
-						std::remove(m_deqConnections.begin(), m_deqConnections.end(), nullptr), m_deqConnections.end());
+//				if (bInvalidClientExists)
+//					connectionsContainer.erase(
+//                            std::remove(connectionsContainer.begin(), connectionsContainer.end(), nullptr), connectionsContainer.end());
 			}
 
 			// Force server to respond to incoming messages
@@ -282,7 +285,7 @@ namespace olc
 			tsqueue<owned_message<T>> m_qMessagesIn;
 
 			// Container of active validated connections
-			std::deque<std::shared_ptr<connection<T>>> m_deqConnections;
+			std::unordered_map<uint32_t, std::shared_ptr<connection<T>>> connectionsContainer;
 
 			// Order of declaration is important - it is also the order of initialisation
 			asio::io_context m_asioContext;

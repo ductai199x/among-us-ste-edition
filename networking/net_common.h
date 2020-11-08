@@ -50,7 +50,7 @@
 
 	Author
 	~~~~~~
-	David Barr, aka javidx9, ©OneLoneCoder 2019, 2020
+	David Barr, aka javidx9, ï¿½OneLoneCoder 2019, 2020
 
 */
 
@@ -75,4 +75,3 @@
 #include <asio.hpp>
 #include <asio/ts/buffer.hpp>
 #include <asio/ts/internet.hpp>
-

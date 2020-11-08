@@ -50,7 +50,7 @@
 
 	Author
 	~~~~~~
-	David Barr, aka javidx9, ©OneLoneCoder 2019, 2020
+	David Barr, aka javidx9, ï¿½OneLoneCoder 2019, 2020
 
 */
 
@@ -80,8 +80,8 @@ namespace olc
 		public:
 			// Constructor: Specify Owner, connect to context, transfer the socket
 			//				Provide reference to incoming message queue
-			connection(owner parent, asio::io_context& asioContext, asio::ip::tcp::socket socket, tsqueue<owned_message<T>>& qIn)
-				: m_asioContext(asioContext), m_socket(std::move(socket)), m_qMessagesIn(qIn)
+			connection(owner parent, asio::io_context& asioContext, asio::ip::tcp::socket&& socket, tsqueue<owned_message<T>>& qIn, uint32_t id)
+				: m_asioContext(asioContext), m_socket(std::move(socket)), m_qMessagesIn(qIn), id(id)
 			{
 				m_nOwnerType = parent;
 			}
@@ -97,13 +97,12 @@ namespace olc
 			}
 
 		public:
-			void ConnectToClient(uint32_t uid = 0)
+			void ConnectToClient()
 			{
 				if (m_nOwnerType == owner::server)
 				{
 					if (m_socket.is_open())
 					{
-						id = uid;
 						ReadHeader();
 					}
 				}
@@ -130,19 +129,17 @@ namespace olc
 			void Disconnect()
 			{
 				if (IsConnected())
-					asio::post(m_asioContext, [this]() { m_socket.close(); });
+					asio::post(m_asioContext, [this]() {
+                        m_socket.cancel();
+                        m_socket.shutdown(asio::socket_base::shutdown_both);
+					    m_socket.close();
+					});
 			}
 
-			bool IsConnected() const
-			{
-				return m_socket.is_open();
-			}
+			bool IsConnected() const { return m_socket.is_open(); }
 
 			// Prime the connection to wait for incoming messages
-			void StartListening()
-			{
-				
-			}
+			void StartListening() {}
 
 		public:
 			// ASYNC - Send a message, connections are one-to-one so no need to specifiy

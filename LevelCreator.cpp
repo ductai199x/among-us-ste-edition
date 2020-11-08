@@ -161,12 +161,14 @@ public:
 
 				// Update Player Position 
 				vCameraPos = { 32.0f, 32.0f };
-				fCameraPitch = 5.5f;
+				fCameraPitch = 4.5f;
 				fCameraZoom = 25.0f;
-				fCameraAngle = 2.0f;
 				vCursor = { 10, 10 };
+
+				// Render Player 
 				rendSelect.Load("./gfx/character.png");
 
+				// Output
 				std::cout << "Load mode selected" << endl;
 				promptState = false;
 				
@@ -221,24 +223,6 @@ public:
 			worldCube[i].y = rotCube[i].y * c - rotCube[i].z * s;
 			worldCube[i].z = rotCube[i].y * s + rotCube[i].z * c;
 		}
-
-		// Project Cube Orthographically - Unit Cube Viewport
-		//float fLeft = -ScreenWidth() * 0.5f;
-		//float fRight = ScreenWidth() * 0.5f;
-		//float fTop = ScreenHeight() * 0.5f;
-		//float fBottom = -ScreenHeight() * 0.5f;
-		//float fNear = 0.1f;
-		//float fFar = 100.0f;*/
-		//for (int i = 0; i < 8; i++)
-		//{
-		//	projCube[i].x = (2.0f / (fRight - fLeft)) * worldCube[i].x - ((fRight + fLeft) / (fRight - fLeft));
-		//	projCube[i].y = (2.0f / (fTop - fBottom)) * worldCube[i].y - ((fTop + fBottom) / (fTop - fBottom));
-		//	projCube[i].z = (2.0f / (fFar - fNear)) * worldCube[i].z - ((fFar + fNear) / (fFar - fNear));
-		//  projCube[i].x *= -fRight;
-		//  projCube[i].y *= -fTop;
-		//  projCube[i].x += fRight;
-		//  projCube[i].y += fTop;
-		//}
 
 		// Project Cube Orthographically - Full Screen Centered
 		for (int i = 0; i < 8; i++)
@@ -432,7 +416,8 @@ public:
 			file << jsonfile;
 
 			// Notify the user that the saving process is done 
-			DrawStringDecal({ 32,32 }, "Map is Saved", olc::YELLOW, { 0.5f, 0.5f });
+			string notifyUser = map + to_string(numbMap) + "is saved";
+			DrawStringDecal({ 32,32 }, notifyUser, olc::YELLOW, { 8.0f, 8.f });
 		}
 
 		// Position camera in world		

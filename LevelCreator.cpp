@@ -110,7 +110,7 @@ public:
 		West = 4,
 		Top = 5
 	};
-
+	string modeSelect;
 public:
 	bool OnUserCreate() override
 	{
@@ -134,7 +134,6 @@ public:
 		// Ask user for mode selection 
 		bool promptState = true;
 		while (promptState) {
-			string modeSelect;
 			cout << "Choose your mode (Design(d) or Load(l)): ";
 			cin >> modeSelect;
 			if (modeSelect == "d") 
@@ -143,11 +142,8 @@ public:
 				promptState = false;
 			}
 			else if (modeSelect == "l") {
-				std::cout << "Load mode selected" << endl;
-				promptState = false;
-
 				// path variables
-				string dir = "C:/Users/nomie/Desktop/LevelCreator/maps/";
+				string dir = "./maps/";
 				string extension = ".json";
 				string map = "map";
 				int numbMap;
@@ -162,6 +158,18 @@ public:
 				for (auto& element : jsonfile) {
 					world.GetCell({ element["id"][0], element["id"][1] }).wall = true;
 				}
+
+				// Update Player Position 
+				vCameraPos = { 32.0f, 32.0f };
+				fCameraPitch = 5.5f;
+				fCameraZoom = 25.0f;
+				fCameraAngle = 2.0f;
+				vCursor = { 10, 10 };
+				rendSelect.Load("./gfx/character.png");
+
+				std::cout << "Load mode selected" << endl;
+				promptState = false;
+				
 			}
 			else {
 				std::cout << "Invalid choice" << endl;
@@ -334,10 +342,46 @@ public:
 		fCameraAngle += (fCameraAngleTarget - fCameraAngle) * 10.0f * fElapsedTime;
 
 		// Arrow keys to move the selection cursor around map (boundary checked)
-		if (GetKey(olc::Key::LEFT).bPressed) vCursor.x--;
-		if (GetKey(olc::Key::RIGHT).bPressed) vCursor.x++;
-		if (GetKey(olc::Key::UP).bPressed) vCursor.y--;
-		if (GetKey(olc::Key::DOWN).bPressed) vCursor.y++;
+		if (modeSelect == "l") {
+			if (GetKey(olc::Key::LEFT).bPressed)
+			{
+				olc::vi2d pCursor = vCursor;
+				vCursor.x--;
+				if (world.GetCell(vCursor).wall == true) {
+					vCursor = pCursor;
+				}
+			}
+			if (GetKey(olc::Key::RIGHT).bPressed)
+			{
+				olc::vi2d pCursor = vCursor;
+				vCursor.x++;
+				if (world.GetCell(vCursor).wall == true) {
+					vCursor = pCursor;
+				}
+			}
+			if (GetKey(olc::Key::UP).bPressed)
+			{
+				olc::vi2d pCursor = vCursor;
+				vCursor.y--;
+				if (world.GetCell(vCursor).wall == true) {
+					vCursor = pCursor;
+				}
+			}
+			if (GetKey(olc::Key::DOWN).bPressed)
+			{
+				olc::vi2d pCursor = vCursor;
+				vCursor.y++;
+				if (world.GetCell(vCursor).wall == true) {
+					vCursor = pCursor;
+				}
+			};
+		}
+		if (modeSelect == "d") {
+			if (GetKey(olc::Key::LEFT).bPressed) vCursor.x--;
+			if (GetKey(olc::Key::RIGHT).bPressed) vCursor.x++;
+			if (GetKey(olc::Key::UP).bPressed) vCursor.y--;
+			if (GetKey(olc::Key::DOWN).bPressed) vCursor.y++;
+		}
 		if (vCursor.x < 0) vCursor.x = 0;
 		if (vCursor.y < 0) vCursor.y = 0;
 		if (vCursor.x >= world.size.x) vCursor.x = world.size.x - 1;
@@ -351,7 +395,7 @@ public:
 		// Save Game 
 		if (GetKey(olc::Key::X).bPressed) {
 			// path variables
-			string dir = "C:/Users/nomie/Desktop/LevelCreator/maps/";
+			string dir = "./maps/";
 			string extension = ".json";
 			string map = "map";
 

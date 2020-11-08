@@ -1,7 +1,8 @@
-CXX := g++
+CXX := g++-9
 SERVER_EXEC ?= server.o
 CLIENT_EXEC ?= client.o
 EXAMPLE_PROGRAM ?= program.o
+DUNGEON ?= dungeon.o
 
 BUILD_DIR ?= ./build
 # SRC_DIRS ?= 
@@ -10,7 +11,7 @@ BUILD_DIR ?= ./build
 # OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 # DEPS := $(OBJS:.o=.d)
 
-INC_DIRS := ./networking ./pgex
+INC_DIRS := ./networking ./pgex /home/hanh/1-workdir/asio-1.18.0/include
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 CPPFLAGS ?= $(INC_FLAGS)
@@ -32,7 +33,10 @@ gui: olcExampleProgram.cpp
 	$(MKDIR_P) $(dir $@)
 	$(CXX) $(CPPFLAGS) $< $(CXXFLAGS) -o $(EXAMPLE_PROGRAM)
 
-
+dungeon_sample: OneLoneCoder_PGE_DungeonWarping.cpp
+	echo $(INC_DIRS)
+	$(MKDIR_P) $(dir $@)
+	$(CXX) $(CPPFLAGS) $< $(CXXFLAGS) -o $(DUNGEON)
 
 clean:
 	$(RM) -r $(BUILD_DIR)

@@ -116,9 +116,9 @@ public:
 	{
 		rendSelect.Load("./gfx/dng_select.png");
 		rendAllWalls.Load("./gfx/oldDungeon.png");
-
 		world.Create(64, 64);
 
+		// Preload tiles
 		for (int y = 0; y < world.size.y; y++)
 			for (int x = 0; x < world.size.x; x++)
 			{
@@ -130,6 +130,46 @@ public:
 				world.GetCell({ x, y }).id[Face::West] = olc::vi2d{ 0, 0 } *vTileSize;
 				world.GetCell({ x, y }).id[Face::East] = olc::vi2d{ 0, 0 } *vTileSize;
 			}
+
+		// Ask user for mode selection 
+		bool promptState = true;
+		while (promptState) {
+			string modeSelect;
+			cout << "Choose your mode (Design(d) or Load(l)): ";
+			cin >> modeSelect;
+			if (modeSelect == "d") 
+			{
+				std::cout << "Design mode selected"<<endl;
+				promptState = false;
+			}
+			else if (modeSelect == "l") {
+				std::cout << "Load mode selected" << endl;
+				promptState = false;
+
+				// path variables
+				string dir = "C:/Users/nomie/Desktop/LevelCreator/maps/";
+				string extension = ".json";
+				string map = "map";
+				int numbMap;
+				cout << "Choose the map you want to load: ";
+				cin >> numbMap;
+				string pathname = dir + map + to_string(numbMap) + extension;
+
+				// load json file
+				std::ifstream file(pathname, std::ifstream::binary);
+				json jsonfile;
+				file >> jsonfile;
+				for (auto& element : jsonfile) {
+					world.GetCell({ element["id"][0], element["id"][1] }).wall = true;
+				}
+			}
+			else {
+				std::cout << "Invalid choice" << endl;
+			}
+		}
+		
+
+		
 		return true;
 	}
 
@@ -320,7 +360,7 @@ public:
 			for (auto& p : fs::directory_iterator(dir)) {
 				numbMap++;
 			}
-			string pathname = dir + map + to_string(numbMap)+ extension;
+			string pathname = dir + map + to_string(numbMap) + extension;
 
 			// Open new file
 			json jsonfile;
@@ -331,23 +371,25 @@ public:
 			for (int x_cursor = 0; x_cursor <= 63; x_cursor++) {
 				for (int y_cursor = 0; y_cursor <= 63; y_cursor++) {
 					if (world.GetCell({ x_cursor, y_cursor }).wall == true) {
-						jsonfile["id"] = { x_cursor, y_cursor };
-						jsonfile["Floor"] = { world.GetCell({ x_cursor, y_cursor }).id[Face::Floor].x, world.GetCell(vCursor).id[Face::Floor].y };
-						jsonfile["North"] = { world.GetCell({ x_cursor, y_cursor }).id[Face::North].x, world.GetCell(vCursor).id[Face::Floor].y };
-						jsonfile["East"] = { world.GetCell({ x_cursor, y_cursor }).id[Face::East].x, world.GetCell(vCursor).id[Face::Floor].y };
-						jsonfile["South"] = { world.GetCell({ x_cursor, y_cursor }).id[Face::South].x, world.GetCell(vCursor).id[Face::Floor].y };
-						jsonfile["West"] = { world.GetCell({ x_cursor, y_cursor }).id[Face::West].x, world.GetCell(vCursor).id[Face::Floor].y };
-						jsonfile["Top"] = { world.GetCell({ x_cursor, y_cursor }).id[Face::Top].x, world.GetCell(vCursor).id[Face::Floor].y };
+						json jsonElement;
+						jsonElement["id"] = { x_cursor, y_cursor };
+						jsonElement["Floor"] = { world.GetCell({ x_cursor, y_cursor }).id[Face::Floor].x, world.GetCell({ x_cursor, y_cursor }).id[Face::Floor].y };
+						jsonElement["North"] = { world.GetCell({ x_cursor, y_cursor }).id[Face::North].x, world.GetCell({ x_cursor, y_cursor }).id[Face::Floor].y };
+						jsonElement["East"] = { world.GetCell({ x_cursor, y_cursor }).id[Face::East].x, world.GetCell({ x_cursor, y_cursor }).id[Face::Floor].y };
+						jsonElement["South"] = { world.GetCell({ x_cursor, y_cursor }).id[Face::South].x, world.GetCell({ x_cursor, y_cursor }).id[Face::Floor].y };
+						jsonElement["West"] = { world.GetCell({ x_cursor, y_cursor }).id[Face::West].x, world.GetCell({ x_cursor, y_cursor }).id[Face::Floor].y };
+						jsonElement["Top"] = { world.GetCell({ x_cursor, y_cursor }).id[Face::Top].x, world.GetCell({ x_cursor, y_cursor }).id[Face::Floor].y };
 
-						file << jsonfile;
+						jsonfile.push_back(jsonElement);
+						
 					}
 				}
 			}
+			file << jsonfile;
 
 			// Notify the user that the saving process is done 
 			DrawStringDecal({ 32,32 }, "Map is Saved", olc::YELLOW, { 0.5f, 0.5f });
 		}
-
 
 		// Position camera in world		
 		vCameraPos = { vCursor.x + 0.5f, vCursor.y + 0.5f };

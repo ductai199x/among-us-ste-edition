@@ -1,64 +1,9 @@
 #define OLC_PGE_APPLICATION
 #include "helper/json.hpp"
-#include "helper/olcPixelGameEngine.h"
+#include "helper/olcExtended.h"
 
 using chrono_clock = std::chrono::steady_clock;
 using json = nlohmann::json;
-
-namespace olc {
-    struct vec3d { float x, y, z; };
-
-	struct sQuad
-	{
-		vec3d points[4];
-		olc::vf2d tile;
-	};
-
-	struct sCell
-	{
-		bool wall = false;
-		olc::vi2d id[6]{};
-	};
-
-    class World
-	{
-	public:
-		World() {}
-
-		void Create(int w, int h)
-		{
-			size = { w, h };
-			vCells.resize(w * h);
-		}
-
-		sCell& GetCell(const olc::vi2d& v)
-		{
-			if (v.x >= 0 && v.x < size.x && v.y >= 0 && v.y < size.y)
-				return vCells[v.y * size.x + v.x];
-			else
-				return NullCell;
-		}
-
-	public:
-		olc::vi2d size;
-
-	private:
-		std::vector<sCell> vCells;
-		sCell NullCell;
-	};
-
-    enum Face
-	{
-		Floor = 0,
-		North = 1,
-		East = 2,
-		South = 3,
-		West = 4,
-		Top = 5
-	};
-
-	std::vector<std::string> Face_s = {"0", "1", "2", "3", "4", "5"};
-}
 
 class MapDesigner : public olc::PixelGameEngine {
 public:
@@ -372,9 +317,14 @@ public:
 				key_ = std::stoi(key, nullptr, 10);
 				x = key_ / mapSize.x;
 				y = key_ - x * mapSize.x;
-				world.GetCell({x, y}).wall = value["type"] == 1;
+				if (value.contains("type")) {
+                    world.GetCell({x, y}).wall = value["type"] == 1;
+                } else {
+                    world.GetCell({x, y}).wall = false; // default to floor
+                }
 				for (int faceid = 0; faceid < 6; faceid++) {
-					world.GetCell({x, y}).id[faceid] = {value[olc::Face_s[faceid]][0], value[olc::Face_s[faceid]][1]};
+				    if (value.contains(olc::Face_s[faceid]))
+					    world.GetCell({x, y}).id[faceid] = {value[olc::Face_s[faceid]][0], value[olc::Face_s[faceid]][1]};
 				}
 			}
 		}

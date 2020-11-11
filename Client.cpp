@@ -7,7 +7,18 @@
 
 using chrono_clock = std::chrono::steady_clock;
 
-//using rect = olc::aabb::rect;
+enum class RenderLayer {
+    Zero,
+    Splash,
+    OpeningBg,
+    OpeningFg,
+    LobbyMap,
+    LobbyBg,
+    LobbyFg,
+    GameMap,
+    GameBg,
+    GameFg
+};
 
 class Client : public olc::net::client_interface<MsgTypes> {
 public:
@@ -46,49 +57,14 @@ public:
 class AmongUsSTE : public olc::PixelGameEngine {
 public:
     AmongUsSTE() {
-        sAppName = "Example";
-    }
-
-    bool OnUserCreate() override {
-        // Called once at the start, so create things here
+        sAppName = "AmongUsSTE";
 
         // Start the network thread
         networkThread = std::thread([this]() {
             while (1) { handleNetworking(); }
         });
 
-//        netClient.Connect("127.0.0.1", 60000);
-
-        rendAllWalls.Load(spriteSheetPath);
-        world.Create(mapSize.x, mapSize.y);
-
-        for (int y = 0; y < world.size.y; y++)
-            for (int x = 0; x < world.size.x; x++) {
-                world.GetCell({x, y}).wall = false;
-                world.GetCell({x, y}).id[olc::Face::Floor] = olc::vi2d{3, 1} * vTileSize;
-            }
-
-        std::cout << "LOADING MAP...\n";
-        std::ifstream file(mapJsonPath);
-        file >> mapDict;
-        int32_t key_, x, y;
-        for (auto&[key, value]: mapDict.items()) {
-            if (!strcmp(key.c_str(), "mapSize")) continue;
-            key_ = std::stoi(key, nullptr, 10);
-            x = key_ / mapSize.x;
-            y = key_ - x * mapSize.x;
-            if (value.contains("type")) {
-                world.GetCell({x, y}).wall = value["type"] == 1;
-            } else {
-                world.GetCell({x, y}).wall = false; // default to floor
-            }
-            for (int faceid = 0; faceid < 6; faceid++) {
-                if (value.contains(olc::Face_s[faceid]))
-                    world.GetCell({x, y}).id[faceid] = {value[olc::Face_s[faceid]][0], value[olc::Face_s[faceid]][1]};
-            }
-        }
-
-        return true;
+        //        netClient.Connect("127.0.0.1", 60000);
     }
 
 private:
@@ -96,8 +72,12 @@ private:
     std::string spriteSheetPath = assetsPath + "32x32.png";
     std::string mapJsonPath = assetsPath + "map.json";
 
+    uint8_t nLayerBackground;
+    RenderLayer layerToRender;
+
     olc::World world;
-    olc::Renderable rendSelect;
+    olc::Renderable rendLogo;
+    olc::Renderable rendMainChar;
     olc::Renderable rendAllWalls;
 
     olc::vf2d vCameraPos = {0.0f, 0.0f};
@@ -108,8 +88,7 @@ private:
 
     bool bVisible[6];
 
-//    olc::vf2d vCharAccel = {0.0f, 0.0f};
-    float additiveVel = 10;
+    float constVel = 10;
     olc::vf2d vCharVel = {0.0f, 0.0f};
     olc::vf2d vCharPos = {0.0f, 0.0f};
     olc::vi2d vTileSize = {32, 32};
@@ -261,86 +240,234 @@ protected:
         vfPos = vCollisionRects[0].pos;
     }
 
-public:
-    bool OnUserUpdate(float fElapsedTime) override {
-        // Position camera in world		
-        vCameraPos = vCharPos;
-        vCameraPos *= fCameraZoom;
-
-        // Rendering
-        std::array<olc::vec3d, 8> cullCube = CreateCube({0, 0}, fCameraAngle, fCameraPitch, fCameraZoom,
-                                                        {vCameraPos.x, 0.0f, vCameraPos.y});
-        CalculateVisibleFaces(cullCube);
-
-        // 2) Get all visible sides of all visible "tile cubes"o
-        std::vector<olc::sQuad> vQuads;
+    void LoadMap()
+    {
         for (int y = 0; y < world.size.y; y++)
-            for (int x = 0; x < world.size.x; x++)
-                GetFaceQuads({x + 0.0f, y + 0.0f}, fCameraAngle, fCameraPitch, fCameraZoom,
-                             {vCameraPos.x, 0.0f, vCameraPos.y},
-                             vQuads);
+            for (int x = 0; x < world.size.x; x++) {
+                world.GetCell({x, y}).wall = false;
+                world.GetCell({x, y}).id[olc::Face::Floor] = olc::vi2d{3, 1} * vTileSize;
+            }
 
-        // 3) Sort in order of depth, from farthest away to closest
-        std::sort(vQuads.begin(), vQuads.end(), [](const olc::sQuad &q1, const olc::sQuad &q2) {
-            float z1 = (q1.points[0].z + q1.points[1].z + q1.points[2].z + q1.points[3].z) * 0.25f;
-            float z2 = (q2.points[0].z + q2.points[1].z + q2.points[2].z + q2.points[3].z) * 0.25f;
-            return z1 < z2;
-        });
-
-        // 4) Iterate through all "tile cubes" and draw their visible faces
-        Clear(olc::BLACK);
-        for (auto &q : vQuads)
-            DrawPartialWarpedDecal
-                    (
-                            rendAllWalls.Decal(),
-                            {
-                                    {q.points[0].x, q.points[0].y},
-                                    {q.points[1].x, q.points[1].y},
-                                    {q.points[2].x, q.points[2].y},
-                                    {q.points[3].x, q.points[3].y}
-                            },
-                            q.tile,
-                            vTileSize
-                    );
-
-        // 6) Draw selection "tile cube"
-        vQuads.clear();
-        GetFaceQuads(vCharPos, fCameraAngle, fCameraPitch, fCameraZoom, {vCameraPos.x, 0.0f, vCameraPos.y}, vQuads);
-        for (auto &q : vQuads)
-            DrawWarpedDecal(rendSelect.Decal(), {
-                    {q.points[0].x, q.points[0].y},
-                    {q.points[1].x, q.points[1].y},
-                    {q.points[2].x, q.points[2].y},
-                    {q.points[3].x, q.points[3].y}
-            });
-
-        // 7) Draw some debug info
-        DrawStringDecal({0, 0}, "Cursor: " + std::to_string(vCharPos.x) + ", " + std::to_string(vCharPos.y),
-                        olc::YELLOW, {0.5f, 0.5f});
-        DrawStringDecal({0, 8}, "Angle: " + std::to_string(fCameraAngle) + ", " + std::to_string(fCameraPitch),
-                        olc::YELLOW, {0.5f, 0.5f});
-        DrawStringDecal({0, 16},
-                        "Char Pos: " + vCharPos.str() + " " + std::to_string(vCharPos.y * mapSize.x + vCharPos.x),
-                        olc::YELLOW, {0.5f, 0.5f});
-        DrawStringDecal({0, 24}, mapDict.dump(2), olc::YELLOW, {0.5f, 0.5f});
-
-        if (GetKey(olc::Key::W).bHeld && !GetKey(olc::Key::S).bHeld) {
-            vCharVel.y = -additiveVel;
-        } else if (!GetKey(olc::Key::W).bHeld && GetKey(olc::Key::S).bHeld) {
-            vCharVel.y = additiveVel;
-        } else {
-            vCharVel.y = 0;
+        std::cout << "LOADING WORLD...\n";
+        std::ifstream file(mapJsonPath);
+        file >> mapDict;
+        int32_t key_, x, y;
+        for (auto&[key, value]: mapDict.items()) {
+            if (!strcmp(key.c_str(), "mapSize")) continue;
+            key_ = std::stoi(key, nullptr, 10);
+            x = key_ / mapSize.x;
+            y = key_ - x * mapSize.x;
+            if (value.contains("type")) {
+                world.GetCell({x, y}).wall = value["type"] == 1;
+            } else {
+                world.GetCell({x, y}).wall = false; // default to floor
+            }
+            for (int faceid = 0; faceid < 6; faceid++) {
+                if (value.contains(olc::Face_s[faceid]))
+                    world.GetCell({x, y}).id[faceid] = {value[olc::Face_s[faceid]][0], value[olc::Face_s[faceid]][1]};
+            }
         }
+    }
 
-        if (GetKey(olc::Key::A).bHeld && !GetKey(olc::Key::D).bHeld) {
-            vCharVel.x = -additiveVel;
-        } else if (!GetKey(olc::Key::A).bHeld && GetKey(olc::Key::D).bHeld) {
-            vCharVel.x = additiveVel;
-        } else {
-            vCharVel.x = 0;
+    void RenderSplash()
+    {
+        uint8_t layer_id = static_cast<uint8_t>(RenderLayer::Splash);
+        SetDrawTarget(layer_id);
+        Clear(olc::VERY_DARK_BLUE);
+
+        DrawStringDecal({20.0f, 20.0f}, "Loading...", olc::YELLOW, {1.0f, 1.0f});
+
+        EnableLayer(layer_id, true);
+        EnableClearVecDecal(layer_id, false);
+        SetDrawTarget(nullptr);
+    }
+
+    void RenderOpeningBg()
+    {
+        uint8_t layer_id = static_cast<uint8_t>(RenderLayer::OpeningBg);
+        SetDrawTarget(layer_id);
+        Clear(olc::BLANK);
+
+        DrawStringDecal({20.0f, 20.0f}, "Start Local Game", olc::YELLOW, {1.0f, 1.0f});
+        DrawStringDecal({20.0f, 30.0f}, "Join Hosted Game", olc::YELLOW, {1.0f, 1.0f});
+
+        EnableLayer(layer_id, true);
+        EnableClearVecDecal(layer_id, false);
+        SetDrawTarget(nullptr);
+    }
+
+    void RenderOpeningFg()
+    {
+        uint8_t layer_id = static_cast<uint8_t>(RenderLayer::OpeningFg);
+        SetDrawTarget(layer_id);
+        Clear(olc::VERY_DARK_GREEN);
+
+        DrawStringDecal({20.0f, 40.0f}, "111", olc::YELLOW, {1.0f, 1.0f});
+        DrawStringDecal({20.0f, 50.0f}, "222", olc::YELLOW, {1.0f, 1.0f});
+
+        EnableLayer(layer_id, true);
+        EnableClearVecDecal(layer_id, false);
+        SetDrawTarget(nullptr);
+    }
+
+public:
+    bool OnUserCreate() override {
+        // Initialize layers:
+        // 0: Splash screen
+        // 1: Opening screen animation
+        // 2: Opening screen buttons
+        // 3: Lobby screen map
+        // 4: Lobby screen button + house rule info
+        // 5: Lobby screen house rule editor / character editor
+        // 6: Game screen map
+        // 7: Game screen actions buttons (MINIMAP/KILL/USE/...)
+        // 8: Game screen chat/minimap
+        // 9: Game screen vote
+        for (int i = 0; i < 10; i++) {
+            nLayerBackground = CreateLayer();
         }
+        layerToRender = RenderLayer::Splash;
 
-        resolveCollision(vCharPos, vCharVel, fElapsedTime);
+        // Load logo
+        rendLogo.Load(assetsPath + "olc_logo_long.png");
+        // Load sprite sheets
+        rendAllWalls.Load(spriteSheetPath);
+        // Create empty world
+        world.Create(mapSize.x, mapSize.y);
+
+        SetDrawTarget(nullptr);
+
+        return true;
+    }
+
+    bool isShowingLayer = false;
+
+    bool OnUserUpdate(float fElapsedTime) override {
+        Clear(olc::BLANK);
+        switch (layerToRender) {
+            case (RenderLayer::Splash): {
+                if (!isShowingLayer) {
+                    RenderSplash();
+                    isShowingLayer = true;
+                } else {
+                    LoadMap();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                    EnableLayer((uint8_t)layerToRender, false);
+                    layerToRender = RenderLayer::OpeningBg;
+                    isShowingLayer = false;
+                }
+                break;
+            }
+            case RenderLayer::OpeningBg: {
+                if (!isShowingLayer) {
+                    RenderOpeningBg();
+                    isShowingLayer = true;
+                } else {
+                    layerToRender = RenderLayer::OpeningFg;
+                    isShowingLayer = false;
+                }
+                break;
+            }
+            case RenderLayer::OpeningFg: {
+                if (!isShowingLayer) {
+                    RenderOpeningFg();
+                } else {
+                    isShowingLayer = true;
+                }
+                break;
+            }
+            case RenderLayer::LobbyMap:
+                break;
+            case RenderLayer::LobbyBg:
+                break;
+            case RenderLayer::LobbyFg:
+                break;
+            case RenderLayer::GameMap:
+                break;
+            case RenderLayer::GameBg:
+                break;
+            case RenderLayer::GameFg:
+                break;
+        }
+//        // Position camera in world
+//        vCameraPos = vCharPos;
+//        vCameraPos *= fCameraZoom;
+//
+//        // Rendering
+//        std::array<olc::vec3d, 8> cullCube = CreateCube({0, 0}, fCameraAngle, fCameraPitch, fCameraZoom,
+//                                                        {vCameraPos.x, 0.0f, vCameraPos.y});
+//        CalculateVisibleFaces(cullCube);
+//
+//        // 2) Get all visible sides of all visible "tile cubes"o
+//        std::vector<olc::sQuad> vQuads;
+//        for (int y = 0; y < world.size.y; y++)
+//            for (int x = 0; x < world.size.x; x++)
+//                GetFaceQuads({x + 0.0f, y + 0.0f}, fCameraAngle, fCameraPitch, fCameraZoom,
+//                             {vCameraPos.x, 0.0f, vCameraPos.y},
+//                             vQuads);
+//
+//        // 3) Sort in order of depth, from farthest away to closest
+//        std::sort(vQuads.begin(), vQuads.end(), [](const olc::sQuad &q1, const olc::sQuad &q2) {
+//            float z1 = (q1.points[0].z + q1.points[1].z + q1.points[2].z + q1.points[3].z) * 0.25f;
+//            float z2 = (q2.points[0].z + q2.points[1].z + q2.points[2].z + q2.points[3].z) * 0.25f;
+//            return z1 < z2;
+//        });
+//
+//        // 4) Iterate through all "tile cubes" and draw their visible faces
+//        Clear(olc::BLACK);
+//        for (auto &q : vQuads)
+//            DrawPartialWarpedDecal
+//                    (
+//                            rendAllWalls.Decal(),
+//                            {
+//                                    {q.points[0].x, q.points[0].y},
+//                                    {q.points[1].x, q.points[1].y},
+//                                    {q.points[2].x, q.points[2].y},
+//                                    {q.points[3].x, q.points[3].y}
+//                            },
+//                            q.tile,
+//                            vTileSize
+//                    );
+//
+//        // 6) Draw character
+//        vQuads.clear();
+//        GetFaceQuads(vCharPos, fCameraAngle, fCameraPitch, fCameraZoom, {vCameraPos.x, 0.0f, vCameraPos.y}, vQuads);
+//        for (auto &q : vQuads)
+//            DrawWarpedDecal(rendSelect.Decal(), {
+//                    {q.points[0].x, q.points[0].y},
+//                    {q.points[1].x, q.points[1].y},
+//                    {q.points[2].x, q.points[2].y},
+//                    {q.points[3].x, q.points[3].y}
+//            });
+//
+//        // 7) Draw some debug info
+//        DrawStringDecal({0, 0}, "Cursor: " + std::to_string(vCharPos.x) + ", " + std::to_string(vCharPos.y),
+//                        olc::YELLOW, {0.5f, 0.5f});
+//        DrawStringDecal({0, 8}, "Angle: " + std::to_string(fCameraAngle) + ", " + std::to_string(fCameraPitch),
+//                        olc::YELLOW, {0.5f, 0.5f});
+//        DrawStringDecal({0, 16},
+//                        "Char Pos: " + vCharPos.str() + " " + std::to_string(vCharPos.y * mapSize.x + vCharPos.x),
+//                        olc::YELLOW, {0.5f, 0.5f});
+//        DrawStringDecal({0, 24}, mapDict.dump(2), olc::YELLOW, {0.5f, 0.5f});
+//
+//        if (GetKey(olc::Key::W).bHeld && !GetKey(olc::Key::S).bHeld) {
+//            vCharVel.y = -constVel;
+//        } else if (!GetKey(olc::Key::W).bHeld && GetKey(olc::Key::S).bHeld) {
+//            vCharVel.y = constVel;
+//        } else {
+//            vCharVel.y = 0;
+//        }
+//
+//        if (GetKey(olc::Key::A).bHeld && !GetKey(olc::Key::D).bHeld) {
+//            vCharVel.x = -constVel;
+//        } else if (!GetKey(olc::Key::A).bHeld && GetKey(olc::Key::D).bHeld) {
+//            vCharVel.x = constVel;
+//        } else {
+//            vCharVel.x = 0;
+//        }
+//
+//        // Resolve
+//        resolveCollision(vCharPos, vCharVel, fElapsedTime);
 
         // Graceful exit if user is in full screen mode
         return !GetKey(olc::Key::ESCAPE).bPressed;

@@ -39,7 +39,7 @@ if(UNIX AND NOT APPLE)
     #message(STATUS "Boost_LIBRARIES = ${Boost_LIBRARY_DIRS}")
 
     add_executable(server.o Server.cpp helper/helper.h helper/GameInstance.cpp)
-    add_executable(client.o Client.cpp helper/helper.h helper/GameInstance.cpp helper/olcPixelGameEngine.h helper/olcExtended.h)
+    add_executable(client.o Client.cpp helper/helper.h helper/GameInstance.cpp helper/olcPixelGameEngine.h helper/olcExtended.h helper/olcCollision.h)
     add_executable(mapdesigner.o MapDesigner.cpp helper/olcPixelGameEngine.h helper/olcExtended.h)
 
     set_property(TARGET server.o PROPERTY CXX_STANDARD 17)

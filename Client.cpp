@@ -240,8 +240,7 @@ protected:
         vfPos = vCollisionRects[0].pos;
     }
 
-    void LoadMap()
-    {
+    void LoadMap() {
         for (int y = 0; y < world.size.y; y++)
             for (int x = 0; x < world.size.x; x++) {
                 world.GetCell({x, y}).wall = false;
@@ -269,8 +268,7 @@ protected:
         }
     }
 
-    void RenderSplash()
-    {
+    void RenderSplash() {
         uint8_t layer_id = static_cast<uint8_t>(RenderLayer::Splash);
         SetDrawTarget(layer_id);
         Clear(olc::VERY_DARK_BLUE);
@@ -282,8 +280,7 @@ protected:
         SetDrawTarget(nullptr);
     }
 
-    void RenderOpeningBg()
-    {
+    void RenderOpeningBg() {
         uint8_t layer_id = static_cast<uint8_t>(RenderLayer::OpeningBg);
         SetDrawTarget(layer_id);
         Clear(olc::BLANK);
@@ -296,8 +293,7 @@ protected:
         SetDrawTarget(nullptr);
     }
 
-    void RenderOpeningFg()
-    {
+    void RenderOpeningFg() {
         uint8_t layer_id = static_cast<uint8_t>(RenderLayer::OpeningFg);
         SetDrawTarget(layer_id);
         Clear(olc::VERY_DARK_GREEN);
@@ -307,6 +303,95 @@ protected:
 
         EnableLayer(layer_id, true);
         EnableClearVecDecal(layer_id, false);
+        SetDrawTarget(nullptr);
+    }
+
+    void RenderGameFg() {
+        uint8_t layer_id = static_cast<uint8_t>(RenderLayer::GameFg);
+        SetDrawTarget(layer_id);
+        Clear(olc::WHITE);
+
+        // Position camera in world
+        vCameraPos = vCharPos;
+        vCameraPos *= fCameraZoom;
+
+        // Rendering
+        std::array<olc::vec3d, 8> cullCube = CreateCube({0, 0}, fCameraAngle, fCameraPitch, fCameraZoom,
+                                                        {vCameraPos.x, 0.0f, vCameraPos.y});
+        CalculateVisibleFaces(cullCube);
+
+        // 2) Get all visible sides of all visible "tile cubes"o
+        std::vector<olc::sQuad> vQuads;
+        for (int y = 0; y < world.size.y; y++)
+            for (int x = 0; x < world.size.x; x++)
+                GetFaceQuads({x + 0.0f, y + 0.0f}, fCameraAngle, fCameraPitch, fCameraZoom,
+                             {vCameraPos.x, 0.0f, vCameraPos.y},
+                             vQuads);
+
+        // 3) Sort in order of depth, from farthest away to closest
+        std::sort(vQuads.begin(), vQuads.end(), [](const olc::sQuad &q1, const olc::sQuad &q2) {
+            float z1 = (q1.points[0].z + q1.points[1].z + q1.points[2].z + q1.points[3].z) * 0.25f;
+            float z2 = (q2.points[0].z + q2.points[1].z + q2.points[2].z + q2.points[3].z) * 0.25f;
+            return z1 < z2;
+        });
+
+        // 4) Iterate through all "tile cubes" and draw their visible faces
+        Clear(olc::BLACK);
+        for (auto &q : vQuads)
+            DrawPartialWarpedDecal
+                    (
+                            rendAllWalls.Decal(),
+                            {
+                                    {q.points[0].x, q.points[0].y},
+                                    {q.points[1].x, q.points[1].y},
+                                    {q.points[2].x, q.points[2].y},
+                                    {q.points[3].x, q.points[3].y}
+                            },
+                            q.tile,
+                            vTileSize
+                    );
+
+        // 6) Draw character
+        vQuads.clear();
+        GetFaceQuads(vCharPos, fCameraAngle, fCameraPitch, fCameraZoom, {vCameraPos.x, 0.0f, vCameraPos.y}, vQuads);
+        for (auto &q : vQuads)
+            DrawWarpedDecal(rendMainChar.Decal(), {
+                    {q.points[0].x, q.points[0].y},
+                    {q.points[1].x, q.points[1].y},
+                    {q.points[2].x, q.points[2].y},
+                    {q.points[3].x, q.points[3].y}
+            });
+
+        // 7) Draw some debug info
+        DrawStringDecal({0, 0}, "Cursor: " + std::to_string(vCharPos.x) + ", " + std::to_string(vCharPos.y),
+                        olc::YELLOW, {0.5f, 0.5f});
+        DrawStringDecal({0, 8}, "Angle: " + std::to_string(fCameraAngle) + ", " + std::to_string(fCameraPitch),
+                        olc::YELLOW, {0.5f, 0.5f});
+        DrawStringDecal({0, 16},
+                        "Char Pos: " + vCharPos.str() + " " + std::to_string(vCharPos.y * mapSize.x + vCharPos.x),
+                        olc::YELLOW, {0.5f, 0.5f});
+//        DrawStringDecal({0, 24}, mapDict.dump(2), olc::YELLOW, {0.5f, 0.5f});
+
+        if (GetKey(olc::Key::W).bHeld && !GetKey(olc::Key::S).bHeld) {
+            vCharVel.y = -constVel;
+        } else if (!GetKey(olc::Key::W).bHeld && GetKey(olc::Key::S).bHeld) {
+            vCharVel.y = constVel;
+        } else {
+            vCharVel.y = 0;
+        }
+
+        if (GetKey(olc::Key::A).bHeld && !GetKey(olc::Key::D).bHeld) {
+            vCharVel.x = -constVel;
+        } else if (!GetKey(olc::Key::A).bHeld && GetKey(olc::Key::D).bHeld) {
+            vCharVel.x = constVel;
+        } else {
+            vCharVel.x = 0;
+        }
+
+        // Resolve
+        resolveCollision(vCharPos, vCharVel, GetElapsedTime());
+
+        EnableLayer(layer_id, true);
         SetDrawTarget(nullptr);
     }
 
@@ -352,7 +437,7 @@ public:
                 } else {
                     LoadMap();
                     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                    EnableLayer((uint8_t)layerToRender, false);
+                    EnableLayer(static_cast<uint8_t>(RenderLayer::Splash), false);
                     layerToRender = RenderLayer::OpeningBg;
                     isShowingLayer = false;
                 }
@@ -371,8 +456,13 @@ public:
             case RenderLayer::OpeningFg: {
                 if (!isShowingLayer) {
                     RenderOpeningFg();
-                } else {
                     isShowingLayer = true;
+                } else {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // simulate process
+                    EnableLayer(static_cast<uint8_t>(RenderLayer::OpeningBg), false);
+                    EnableLayer(static_cast<uint8_t>(RenderLayer::OpeningFg), false);
+                    layerToRender = RenderLayer::GameFg;
+                    isShowingLayer = false;
                 }
                 break;
             }
@@ -386,88 +476,12 @@ public:
                 break;
             case RenderLayer::GameBg:
                 break;
-            case RenderLayer::GameFg:
+            case RenderLayer::GameFg: {
+                RenderGameFg();
                 break;
+            }
         }
-//        // Position camera in world
-//        vCameraPos = vCharPos;
-//        vCameraPos *= fCameraZoom;
-//
-//        // Rendering
-//        std::array<olc::vec3d, 8> cullCube = CreateCube({0, 0}, fCameraAngle, fCameraPitch, fCameraZoom,
-//                                                        {vCameraPos.x, 0.0f, vCameraPos.y});
-//        CalculateVisibleFaces(cullCube);
-//
-//        // 2) Get all visible sides of all visible "tile cubes"o
-//        std::vector<olc::sQuad> vQuads;
-//        for (int y = 0; y < world.size.y; y++)
-//            for (int x = 0; x < world.size.x; x++)
-//                GetFaceQuads({x + 0.0f, y + 0.0f}, fCameraAngle, fCameraPitch, fCameraZoom,
-//                             {vCameraPos.x, 0.0f, vCameraPos.y},
-//                             vQuads);
-//
-//        // 3) Sort in order of depth, from farthest away to closest
-//        std::sort(vQuads.begin(), vQuads.end(), [](const olc::sQuad &q1, const olc::sQuad &q2) {
-//            float z1 = (q1.points[0].z + q1.points[1].z + q1.points[2].z + q1.points[3].z) * 0.25f;
-//            float z2 = (q2.points[0].z + q2.points[1].z + q2.points[2].z + q2.points[3].z) * 0.25f;
-//            return z1 < z2;
-//        });
-//
-//        // 4) Iterate through all "tile cubes" and draw their visible faces
-//        Clear(olc::BLACK);
-//        for (auto &q : vQuads)
-//            DrawPartialWarpedDecal
-//                    (
-//                            rendAllWalls.Decal(),
-//                            {
-//                                    {q.points[0].x, q.points[0].y},
-//                                    {q.points[1].x, q.points[1].y},
-//                                    {q.points[2].x, q.points[2].y},
-//                                    {q.points[3].x, q.points[3].y}
-//                            },
-//                            q.tile,
-//                            vTileSize
-//                    );
-//
-//        // 6) Draw character
-//        vQuads.clear();
-//        GetFaceQuads(vCharPos, fCameraAngle, fCameraPitch, fCameraZoom, {vCameraPos.x, 0.0f, vCameraPos.y}, vQuads);
-//        for (auto &q : vQuads)
-//            DrawWarpedDecal(rendSelect.Decal(), {
-//                    {q.points[0].x, q.points[0].y},
-//                    {q.points[1].x, q.points[1].y},
-//                    {q.points[2].x, q.points[2].y},
-//                    {q.points[3].x, q.points[3].y}
-//            });
-//
-//        // 7) Draw some debug info
-//        DrawStringDecal({0, 0}, "Cursor: " + std::to_string(vCharPos.x) + ", " + std::to_string(vCharPos.y),
-//                        olc::YELLOW, {0.5f, 0.5f});
-//        DrawStringDecal({0, 8}, "Angle: " + std::to_string(fCameraAngle) + ", " + std::to_string(fCameraPitch),
-//                        olc::YELLOW, {0.5f, 0.5f});
-//        DrawStringDecal({0, 16},
-//                        "Char Pos: " + vCharPos.str() + " " + std::to_string(vCharPos.y * mapSize.x + vCharPos.x),
-//                        olc::YELLOW, {0.5f, 0.5f});
-//        DrawStringDecal({0, 24}, mapDict.dump(2), olc::YELLOW, {0.5f, 0.5f});
-//
-//        if (GetKey(olc::Key::W).bHeld && !GetKey(olc::Key::S).bHeld) {
-//            vCharVel.y = -constVel;
-//        } else if (!GetKey(olc::Key::W).bHeld && GetKey(olc::Key::S).bHeld) {
-//            vCharVel.y = constVel;
-//        } else {
-//            vCharVel.y = 0;
-//        }
-//
-//        if (GetKey(olc::Key::A).bHeld && !GetKey(olc::Key::D).bHeld) {
-//            vCharVel.x = -constVel;
-//        } else if (!GetKey(olc::Key::A).bHeld && GetKey(olc::Key::D).bHeld) {
-//            vCharVel.x = constVel;
-//        } else {
-//            vCharVel.x = 0;
-//        }
-//
-//        // Resolve
-//        resolveCollision(vCharPos, vCharVel, fElapsedTime);
+
 
         // Graceful exit if user is in full screen mode
         return !GetKey(olc::Key::ESCAPE).bPressed;

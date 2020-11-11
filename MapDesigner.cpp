@@ -67,6 +67,10 @@ public:
     }
 
 protected:
+    std::string assetsPath = "/home/bigboy/1-workdir/among-us-ste-edition/assets/";
+    std::string spriteSheetPath = assetsPath + "32x32.png";
+    std::string mapJsonPath = assetsPath + "map.json";
+
 	json mapDict;
     olc::World world;
 	olc::Renderable rendSelect;
@@ -185,7 +189,7 @@ protected:
 
 public:
 	bool OnUserCreate() override {
-        rendAllWalls.Load("./assets/32x32.png");
+        rendAllWalls.Load(spriteSheetPath);
 		world.Create(mapSize.x, mapSize.y);
 
         mapDict["mapSize"] = { mapSize.x, mapSize.y };
@@ -255,19 +259,19 @@ public:
 			mapDict[cursorId][olc::Face_s[olc::Face::East]] = {vSpriteTileSelect.x, vSpriteTileSelect.y};
 		}
 		if (GetKey(olc::Key::K3).bPressed) {
-			world.GetCell(vCursor).id[olc::Face::South] = vTileCursor * vTileSize;
+			world.GetCell(vCursor).id[olc::Face::South] = vSpriteTileSelect;
 			mapDict[cursorId][olc::Face_s[olc::Face::South]] = {vSpriteTileSelect.x, vSpriteTileSelect.y};
 		}
 		if (GetKey(olc::Key::K4).bPressed) {
-			world.GetCell(vCursor).id[olc::Face::West] = vTileCursor * vTileSize;
+			world.GetCell(vCursor).id[olc::Face::West] = vSpriteTileSelect;
 			mapDict[cursorId][olc::Face_s[olc::Face::West]] = {vSpriteTileSelect.x, vSpriteTileSelect.y};
 		}
 		if (GetKey(olc::Key::K5).bPressed) {
-			world.GetCell(vCursor).id[olc::Face::Floor] = vTileCursor * vTileSize;
+			world.GetCell(vCursor).id[olc::Face::Floor] = vSpriteTileSelect;
 			mapDict[cursorId][olc::Face_s[olc::Face::Floor]] = {vSpriteTileSelect.x, vSpriteTileSelect.y};
 		}
 		if (GetKey(olc::Key::K6).bPressed) {
-			world.GetCell(vCursor).id[olc::Face::Top] = vTileCursor * vTileSize;
+			world.GetCell(vCursor).id[olc::Face::Top] = vSpriteTileSelect;
 			mapDict[cursorId][olc::Face_s[olc::Face::Top]] = {vSpriteTileSelect.x, vSpriteTileSelect.y};
 		}
 
@@ -349,16 +353,31 @@ public:
 		// 7) Draw some debug info
 		DrawStringDecal({ 0,0 }, "Cursor: " + std::to_string(vCursor.x) + ", " + std::to_string(vCursor.y), olc::YELLOW, { 0.5f, 0.5f });
 		DrawStringDecal({ 0,8 }, "Angle: " + std::to_string(fCameraAngle) + ", " + std::to_string(fCameraPitch), olc::YELLOW, { 0.5f, 0.5f });
-		DrawStringDecal({ 0,16 }, mapDict.dump(), olc::YELLOW, { 0.5f, 0.5f });
+		DrawStringDecal({ 0,16 }, mapDict.dump(2), olc::YELLOW, { 0.5f, 0.5f });
 
 		// 8) Save the map onto the drive
 		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::C).bPressed) {
 			std::cout << "SAVING MAP...\n";
-			std::ofstream file;
-			file.open("./assets/map.json");
-			file << mapDict;
+			std::ofstream o(mapJsonPath);
+			o << std::setw(4) << mapDict << std::endl;
 		}
 
+		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::O).bPressed) {
+			std::cout << "LOADING MAP...\n";
+			std::ifstream file(mapJsonPath);
+			file >> mapDict;
+			int32_t key_, x, y;
+			for (auto& [key, value]: mapDict.items()) {
+				if (!strcmp(key.c_str(), "mapSize")) continue;
+				key_ = std::stoi(key, nullptr, 10);
+				x = key_ / mapSize.x;
+				y = key_ - x * mapSize.x;
+				world.GetCell({x, y}).wall = value["type"] == 1;
+				for (int faceid = 0; faceid < 6; faceid++) {
+					world.GetCell({x, y}).id[faceid] = {value[olc::Face_s[faceid]][0], value[olc::Face_s[faceid]][1]};
+				}
+			}
+		}
 
 		// Graceful exit if user is in full screen mode
 		return !GetKey(olc::Key::ESCAPE).bPressed;

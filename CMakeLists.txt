@@ -40,9 +40,11 @@ if(UNIX AND NOT APPLE)
 
     add_executable(server.o Server.cpp helper/helper.h helper/GameInstance.cpp)
     add_executable(client.o Client.cpp helper/helper.h helper/GameInstance.cpp helper/olcPixelGameEngine.h)
+    add_executable(mapdesigner.o MapDesigner.cpp helper/olcPixelGameEngine.h)
 
     set_property(TARGET server.o PROPERTY CXX_STANDARD 17)
     set_property(TARGET client.o PROPERTY CXX_STANDARD 17)
+    set_property(TARGET mapdesigner.o PROPERTY CXX_STANDARD 17)
 
     target_link_libraries(server.o PUBLIC Threads::Threads ${X11_LIBRARIES} ${PNG_LIBRARIES})
     target_include_directories(server.o PUBLIC asio-1.18.0)
@@ -53,4 +55,6 @@ if(UNIX AND NOT APPLE)
     target_link_directories(client.o PUBLIC asio-1.18.0)
     target_include_directories(client.o PUBLIC pgex)
     target_link_directories(client.o PUBLIC pgex)
+
+    target_link_libraries(mapdesigner.o PUBLIC Threads::Threads OpenGL::GL ${X11_LIBRARIES} ${PNG_LIBRARIES})
 endif()

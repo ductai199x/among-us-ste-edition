@@ -68,15 +68,18 @@ public:
     }
 
 private:
-    std::string assetsPath = "/home/bigboy/1-workdir/among-us-ste-edition/assets/";
+    std::string assetsPath = "/home/hanh/1-workdir/among-us-ste-edition/assets/";
     std::string spriteSheetPath = assetsPath + "32x32.png";
     std::string mapJsonPath = assetsPath + "map.json";
+    std::string splashBgPath = assetsPath + "splash.png";
 
     uint8_t nLayerBackground;
     RenderLayer layerToRender;
 
     olc::World world;
     olc::Renderable rendLogo;
+    olc::Renderable rendSplashbg;
+    olc::Renderable rendOpeningBg;
     olc::Renderable rendMainChar;
     olc::Renderable rendAllWalls;
 
@@ -111,6 +114,14 @@ private:
     std::thread networkThread;
 
     json mapDict;
+
+    //Buttons and first few layers' widget
+    olc::vf2d vLocGameBtnPos = {100, 100};
+    olc::vf2d vHostGameBtnPos = {100, 200};
+    olc::vf2d vLocGameBtnSz = {200, 70};
+    olc::vf2d vHostGameBtnSz = {200, 70};
+
+
 
 protected:
     std::array<olc::vec3d, 8>
@@ -268,13 +279,25 @@ protected:
         }
     }
 
+    bool inFrame(olc::vf2d c, olc::vf2d root, olc::vf2d size) {
+        if (((c.x > root.x) && (c.x < root.x + size.x)) && ((c.y > root.y) && (c.y < root.y + size.y))) {
+            return True;
+        } else {
+            return False;
+        }
+    }
+
     void RenderSplash() {
         uint8_t layer_id = static_cast<uint8_t>(RenderLayer::Splash);
         SetDrawTarget(layer_id);
-        Clear(olc::VERY_DARK_BLUE);
+        Clear(olc::BLACK);
 
-        DrawStringDecal({20.0f, 20.0f}, "Loading...", olc::YELLOW, {1.0f, 1.0f});
+        DrawDecal({0,0}, rendSplashbg.Decal(), {0.35f, 0.4f});
+        DrawDecal({420, 450}, rendLogo.Decal(), {0.4f, 0.4f});
 
+        DrawStringDecal({20.0f, 20.0f}, "Loading...", olc::WHITE, {1.0f, 1.0f});
+        DrawStringDecal({200.0f, 450.0f}, "Brought to you by @TANAT", olc::WHITE, {1.0f, 1.0f});
+        
         EnableLayer(layer_id, true);
         EnableClearVecDecal(layer_id, false);
         SetDrawTarget(nullptr);
@@ -283,10 +306,15 @@ protected:
     void RenderOpeningBg() {
         uint8_t layer_id = static_cast<uint8_t>(RenderLayer::OpeningBg);
         SetDrawTarget(layer_id);
-        Clear(olc::BLANK);
+        Clear(olc::WHITE);
+        
+        DrawDecal({0,0}, rendOpeningBg.Decal(), {1.5f, 1.5f});
+        
+        FillRect(int(vLocGameBtnPos.x), int(vLocGameBtnPos.y), int(vLocGameBtnSz.x), int(vLocGameBtnSz.y), olc::BLACK);
+        FillRect(int(vHostGameBtnPos.x), int(vHostGameBtnPos.y), int(vHostGameBtnSz.x), int(vHostGameBtnSz.y), olc::BLACK);
 
-        DrawStringDecal({20.0f, 20.0f}, "Start Local Game", olc::YELLOW, {1.0f, 1.0f});
-        DrawStringDecal({20.0f, 30.0f}, "Join Hosted Game", olc::YELLOW, {1.0f, 1.0f});
+        DrawStringDecal({vLocGameBtnPos.x + 10.0f, vLocGameBtnPos.y + 10.0f}, "Start Local Game", olc::YELLOW, {1.0f, 1.0f});
+        DrawStringDecal({vHostGameBtnPos.x + 10.0f, vHostGameBtnPos.y + 10.0f}, "Join Hosted Game", olc::YELLOW, {1.0f, 1.0f});
 
         EnableLayer(layer_id, true);
         EnableClearVecDecal(layer_id, false);
@@ -294,12 +322,10 @@ protected:
     }
 
     void RenderOpeningFg() {
+        std::cout << "rendering Opening FG\n"; 
         uint8_t layer_id = static_cast<uint8_t>(RenderLayer::OpeningFg);
         SetDrawTarget(layer_id);
-        Clear(olc::VERY_DARK_GREEN);
-
-        DrawStringDecal({20.0f, 40.0f}, "111", olc::YELLOW, {1.0f, 1.0f});
-        DrawStringDecal({20.0f, 50.0f}, "222", olc::YELLOW, {1.0f, 1.0f});
+        Clear(olc::BLANK);
 
         EnableLayer(layer_id, true);
         EnableClearVecDecal(layer_id, false);
@@ -413,14 +439,15 @@ public:
         }
         layerToRender = RenderLayer::Splash;
 
+        //Load backgrounds
+        rendSplashbg.Load(splashBgPath);
+        rendOpeningBg.Load(assetsPath + "openBg.png");
         // Load logo
         rendLogo.Load(assetsPath + "olc_logo_long.png");
         // Load sprite sheets
         rendAllWalls.Load(spriteSheetPath);
         // Create empty world
-        world.Create(mapSize.x, mapSize.y);
-
-        SetDrawTarget(nullptr);
+        world.Create(mapSize.x, mapSize.y);   
 
         return true;
     }
@@ -436,7 +463,7 @@ public:
                     isShowingLayer = true;
                 } else {
                     LoadMap();
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
                     EnableLayer(static_cast<uint8_t>(RenderLayer::Splash), false);
                     layerToRender = RenderLayer::OpeningBg;
                     isShowingLayer = false;
@@ -458,11 +485,20 @@ public:
                     RenderOpeningFg();
                     isShowingLayer = true;
                 } else {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // simulate process
-                    EnableLayer(static_cast<uint8_t>(RenderLayer::OpeningBg), false);
-                    EnableLayer(static_cast<uint8_t>(RenderLayer::OpeningFg), false);
-                    layerToRender = RenderLayer::GameFg;
-                    isShowingLayer = false;
+                    if (GetMouse(0).bReleased) {
+                        if (inFrame(GetMousePos(), vLocGameBtnPos, vLocGameBtnSz)) {
+                            DrawString(300, 400, "Starting Local game", olc::BLUE);
+                            //Implemnet going to Lobby and Map settings here
+
+                        } else if (inFrame(GetMousePos(), vHostGameBtnPos, vHostGameBtnSz)) {
+                            DrawString(300, 400, "Joining Hosted game", olc::RED);
+                            std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
+                            EnableLayer(static_cast<uint8_t>(RenderLayer::OpeningBg), false);
+                            EnableLayer(static_cast<uint8_t>(RenderLayer::OpeningFg), false);
+                            layerToRender = RenderLayer::GameFg;
+                            isShowingLayer = false;
+                        }
+                    }
                 }
                 break;
             }

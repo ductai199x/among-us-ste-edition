@@ -121,6 +121,8 @@ private:
     olc::vf2d vHostGameBtnPos = {80, 180};
     olc::vf2d vLocGameBtnSz = {200, 50};
     olc::vf2d vHostGameBtnSz = {200, 50};
+    olc::vf2d vModRulesBtnPos = {40, 80};
+    olc::vf2d vModRulesBtnSz = {140, 50};
 
 
 
@@ -526,15 +528,9 @@ protected:
         
         Clear(olc::BLANK);
         
-        // DrawDecal(vLocGameBtnPos, rendBlur.Decal(), {(vLocGameBtnSz.x + 5)/1699.0f, (vLocGameBtnSz.y)/579.0f}, olc::Pixel(255,255,255,180));
-        // DrawDecal(vHostGameBtnPos, rendBlur.Decal(), {(vHostGameBtnSz.x + 5)/1699.0f, (vHostGameBtnSz.y)/579.0f}, olc::Pixel(255,255,255,180));
-        FillRect(int(vLocGameBtnPos.x), int(vLocGameBtnPos.y), int(vLocGameBtnSz.x), int(vLocGameBtnSz.y), olc::Pixel(255,255,255,180));
-        FillRect(int(vHostGameBtnPos.x), int(vHostGameBtnPos.y), int(vHostGameBtnSz.x), int(vHostGameBtnSz.y), olc::Pixel(255,255,255,180));
-        DrawRect(int(vLocGameBtnPos.x) + 5, int(vLocGameBtnPos.y) + 5, int(vLocGameBtnSz.x)-10, int(vLocGameBtnSz.y)-10, olc::WHITE);
-        DrawRect(int(vHostGameBtnPos.x) + 5, int(vHostGameBtnPos.y) + 5, int(vHostGameBtnSz.x)-10, int(vHostGameBtnSz.y)-10, olc::WHITE);
-
-        DrawStringDecal({vLocGameBtnPos.x + 20.0f, vLocGameBtnPos.y + 20.0f}, "Start Local Game", olc::BLACK, {1.0f, 1.0f});
-        DrawStringDecal({vHostGameBtnPos.x + 20.0f, vHostGameBtnPos.y + 20.0f}, "Join Hosted Game", olc::BLACK, {1.0f, 1.0f});
+        FillRect(int(vModRulesBtnPos.x), int(vModRulesBtnPos.y), int(vModRulesBtnSz.x), int(vModRulesBtnSz.y), olc::Pixel(255,255,255,180));
+        DrawRect(int(vModRulesBtnPos.x) + 5, int(vModRulesBtnPos.y) + 5, int(vModRulesBtnSz.x)-10, int(vModRulesBtnSz.y)-10, olc::WHITE);
+        DrawStringDecal({vModRulesBtnPos.x + 20.0f, vModRulesBtnPos.y + 20.0f}, "Modify houserules", olc::BLACK, {1.0f, 1.0f});
 
         EnableLayer(layer_id, true);
         EnableClearVecDecal(layer_id, false);
@@ -648,7 +644,8 @@ public:
                             EnableLayer(static_cast<uint8_t>(RenderLayer::LobbyBg), false);
                             layerToRender = RenderLayer::LobbyFg;
                             isShowingLayer = false;
-
+                        }
+                    }
                 break;
             case RenderLayer::LobbyBg:
                 if (!isShowingLayer) {
@@ -673,7 +670,6 @@ public:
             }
         }
 
-        }
         // Graceful exit if user is in full screen mode
         return !GetKey(olc::Key::ESCAPE).bPressed;
     }

@@ -35,6 +35,8 @@ also include the `asio` library into this project.
 
 
 ## Current Layer tree:
+                ---------<exit game>---------------
+                |                                 |
 Splash ---> Opening ----<start local game>----> Lobby --<modify rules>--> Lobbyfg   
               |                                   |                          |
               |                                   ------------------<Back>----

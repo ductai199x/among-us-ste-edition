@@ -83,6 +83,8 @@ private:
     olc::Renderable rendMainChar;
     olc::Renderable rendAllWalls;
     olc::Renderable rendBlur;
+    olc::Renderable rendRulesBg;
+
 
     olc::vf2d vCameraPos = {0.0f, 0.0f};
     float fCameraAngle = 0.0f;
@@ -121,8 +123,11 @@ private:
     olc::vf2d vHostGameBtnPos = {80, 180};
     olc::vf2d vLocGameBtnSz = {200, 50};
     olc::vf2d vHostGameBtnSz = {200, 50};
-    olc::vf2d vModRulesBtnPos = {40, 80};
-    olc::vf2d vModRulesBtnSz = {140, 50};
+    olc::vf2d vModRulesBtnPos = {20, 60};
+    olc::vf2d vModRulesBtnSz = {90, 25};
+    olc::vf2d vhandlePos = {550, 50};
+    olc::vf2d vScrollBarPos = {520, 50};
+
 
 
 
@@ -523,14 +528,23 @@ protected:
 
     void RenderLobbyBg() { //screen button and house rule info
         //Get house rule info from where? server?
-        uint8_t layer_id = static_cast<uint8_t>(RenderLayer::OpeningBg);
+        uint8_t layer_id = static_cast<uint8_t>(RenderLayer::LobbyBg);
         SetDrawTarget(layer_id);
         
         Clear(olc::BLANK);
         
         FillRect(int(vModRulesBtnPos.x), int(vModRulesBtnPos.y), int(vModRulesBtnSz.x), int(vModRulesBtnSz.y), olc::Pixel(255,255,255,180));
         DrawRect(int(vModRulesBtnPos.x) + 5, int(vModRulesBtnPos.y) + 5, int(vModRulesBtnSz.x)-10, int(vModRulesBtnSz.y)-10, olc::WHITE);
-        DrawStringDecal({vModRulesBtnPos.x + 20.0f, vModRulesBtnPos.y + 20.0f}, "Modify houserules", olc::BLACK, {1.0f, 1.0f});
+        DrawStringDecal({vModRulesBtnPos.x + 10.0f, vModRulesBtnPos.y + 10.0f}, "Modify houserules", olc::BLACK, {0.5f, 0.5f});
+        DrawStringDecal({0, 200}, "Kill cooldown: " + std::to_string(vCharPos.x) + ", " + std::to_string(vCharPos.y),
+                        olc::YELLOW, {0.5f, 0.5f});
+        DrawStringDecal({0, 208}, "Crewmate's tasks " + std::to_string(fCameraAngle) + ", " + std::to_string(fCameraPitch),
+                        olc::YELLOW, {0.5f, 0.5f});
+        DrawStringDecal({0, 216},
+                        "Plant max health " + vCharPos.str() + " " + std::to_string(vCharPos.y * mapSize.x + vCharPos.x),
+                        olc::YELLOW, {0.5f, 0.5f});
+        DrawStringDecal({0, 224}, "Sabotage cooldown",
+                        olc::YELLOW, {0.5f, 0.5f});
 
         EnableLayer(layer_id, true);
         EnableClearVecDecal(layer_id, false);
@@ -538,7 +552,28 @@ protected:
     }
 
     void RenderLobbyFg() { //house rule editor
-        RenderSplash();
+        uint8_t layer_id = static_cast<uint8_t>(RenderLayer::LobbyFg);
+        SetDrawTarget(layer_id);
+        Clear(olc::WHITE);
+        // DrawDecal({0,0}, rendRulesBg.Decal(), {0.35f, 0.4f}); //orig size: 1746 x 1171
+
+        DrawStringDecal({100.0f, 250.0f - vhandlePos.y}, "LLLIIINNNNEEEE 000000000", olc::BLACK, {1.0f, 1.0f});
+        DrawStringDecal({100.0f, 300.0f - vhandlePos.y}, "LLLIIINNNNEEEE 111111111", olc::BLACK, {1.0f, 1.0f});
+        DrawStringDecal({100.0f, 350.0f - vhandlePos.y}, "LLLIIINNNNEEEE 222222222", olc::BLACK, {1.0f, 1.0f});
+        DrawStringDecal({100.0f, 400.0f - vhandlePos.y}, "LLLIIINNNNEEEE 333333333", olc::BLACK, {1.0f, 1.0f});
+        DrawStringDecal({100.0f, 450.0f - vhandlePos.y}, "LLLIIINNNNEEEE 444444444", olc::CYAN, {1.0f, 1.0f});
+        DrawStringDecal({500.0f+5, 450.0f + 5}, "BACK", olc::BLACK, {1.0f, 1.0f});
+        //Put text editor field here
+
+        FillRect(10, 10, 620, 460, olc::Pixel(242, 183, 66, 180));
+        FillRect(550, 30, 10, 300, olc::WHITE);
+        FillRect(vhandlePos.x, vhandlePos.y, 10, 20, olc::GREY);
+        FillRect(500, 450, 100, 40, olc::Pixel(255, 255, 255, 180));
+
+
+        EnableLayer(layer_id, true);
+        EnableClearVecDecal(layer_id, true);
+        SetDrawTarget(nullptr);
     }
 
     void getTextInput() {
@@ -567,6 +602,7 @@ public:
         //Load backgrounds
         rendSplashbg.Load(splashBgPath);
         rendOpeningBg.Load(assetsPath + "openBg.png");
+        rendRulesBg.Load(assetsPath + "wood.png");
         //Load Effects
         rendBlur.Load(assetsPath + "blur.png");
 
@@ -584,6 +620,7 @@ public:
     bool isShowingLayer = false;
 
     bool OnUserUpdate(float fElapsedTime) override {
+        static float lastScrollPos;
         Clear(olc::BLANK);
         switch (layerToRender) {
             case (RenderLayer::Splash): {
@@ -636,20 +673,18 @@ public:
             }
             case RenderLayer::LobbyMap:
                 RenderLobbyMap();
-                // if (!isShowingLayer) {
-                //     RenderLobbyMap();
-                //     isShowingLayer = true;
-                    if (GetMouse(0).bReleased) {
-                        if (inFrame(GetMousePos(), vLocGameBtnPos, vLocGameBtnSz)) {
-                            EnableLayer(static_cast<uint8_t>(RenderLayer::LobbyBg), false);
-                            layerToRender = RenderLayer::LobbyFg;
-                            isShowingLayer = false;
-                        }
+                
+                if (GetMouse(0).bReleased) {
+                    if (inFrame(GetMousePos(), vModRulesBtnPos, vModRulesBtnSz)) {
+                        EnableLayer(static_cast<uint8_t>(RenderLayer::LobbyBg), false);
+                        layerToRender = RenderLayer::LobbyFg;
+                        isShowingLayer = false;
                     }
+                }
                 break;
             case RenderLayer::LobbyBg:
                 if (!isShowingLayer) {
-                    RenderOpeningBg();
+                    RenderLobbyBg();
                     isShowingLayer = true;
                 } else {
                     layerToRender = RenderLayer::LobbyMap;
@@ -657,7 +692,27 @@ public:
                 }
                 break;
             case RenderLayer::LobbyFg: {
-                RenderLobbyFg();
+                //if (!isShowingLayer) {
+                    RenderLobbyFg(); 
+                
+                if (GetMouse(0).bReleased) {
+                    if (inFrame(GetMousePos(), {500, 450}, {100, 40})) {
+                        EnableLayer(static_cast<uint8_t>(RenderLayer::LobbyFg), false);
+                        EnableLayer(static_cast<uint8_t>(RenderLayer::LobbyBg), true);
+                        layerToRender = RenderLayer::LobbyMap;
+                    } 
+                } else if (GetMouse(0).bHeld) {
+                    //if (inFrame(GetMousePos(), {520, 30}, {10, 300})) {
+                        //if (GetMouse(0).bHeld) {
+                            vhandlePos.y = GetMousePos().y;
+                            if (vhandlePos.y > 330)
+                                vhandlePos.y = 330 - 20;
+                            if (vhandlePos.y < 30)
+                                vhandlePos.y = 30;
+                            isShowingLayer = false;
+                        //}
+                    //}
+                }
                 break;
             }
             case RenderLayer::GameMap:

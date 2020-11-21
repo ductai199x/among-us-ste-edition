@@ -33,3 +33,9 @@ also include the `asio` library into this project.
 
 5. Server is doing all the game logic (i.e. winning & losing conditions,..)
 
+
+## Current Layer tree:
+Splash ---> Opening ----<start local game>----> Lobby --<modify rules>--> Lobbyfg   
+              |                                   |                          |
+              |                                   ------------------<Back>----
+              --<Join hosted game>--> Game map

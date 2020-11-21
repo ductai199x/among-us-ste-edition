@@ -67,7 +67,7 @@ public:
         //        netClient.Connect("127.0.0.1", 60000);
     }
 
-private:
+protected:
     std::string assetsPath = "/home/bigboy/1-workdir/among-us-ste-edition/assets/";
     std::string spriteSheetPath = assetsPath + "32x32.png";
     std::string mapJsonPath = assetsPath + "map.json";
@@ -75,24 +75,27 @@ private:
     uint8_t nLayerBackground;
     RenderLayer layerToRender;
 
+    json mapDict;
     olc::World world;
-    olc::Renderable rendLogo;
-    olc::Renderable rendMainChar;
+    olc::Renderable rendSelect;
     olc::Renderable rendAllWalls;
 
     olc::vf2d vCameraPos = {0.0f, 0.0f};
-    float fCameraAngle = 0.0f;
+    float fCameraAngle = 0.5f;
     float fCameraAngleTarget = fCameraAngle;
-    float fCameraPitch = 4.71238898038f;
+    float fCameraPitch = 5.5f;
     float fCameraZoom = 16.0f;
 
     bool bVisible[6];
 
-    float constVel = 10;
-    olc::vf2d vCharVel = {0.0f, 0.0f};
-    olc::vf2d vCharPos = {0.0f, 0.0f};
+    olc::vf2d vCharVel = {0, 0};
+    olc::vf2d vCharPos = {0, 0};
     olc::vi2d vTileSize = {32, 32};
     olc::vi2d mapSize = {64, 64};
+
+    Client netClient;
+    GameInstance gameInstance;
+    std::thread networkThread;
 
     std::vector<olc::aabb::rect> vCollisionRects = std::vector<olc::aabb::rect>(9);
     std::vector<olc::vi2d> surroundRect = {
@@ -106,18 +109,11 @@ private:
             {1,  1}
     };
 
-    Client netClient;
-    GameInstance gameInstance;
-    std::thread networkThread;
-
-    json mapDict;
-
-protected:
     std::array<olc::vec3d, 8>
     CreateCube(const olc::vf2d &vCell, const float fAngle, const float fPitch, const float fScale,
                const olc::vec3d &vCamera) {
         // Unit Cube
-        std::array<olc::vec3d, 8> unitCube, rotCube, worldCube, projCube;
+        std::array<olc::vec3d, 8> unitCube{}, rotCube{}, worldCube{}, projCube{};
         unitCube[0] = {0.0f, 0.0f, 0.0f};
         unitCube[1] = {fScale, 0.0f, 0.0f};
         unitCube[2] = {fScale, -fScale, 0.0f};
@@ -135,8 +131,8 @@ protected:
         }
 
         // Rotate Cube in Y-Axis around origin
-        float s = sin(fAngle);
-        float c = cos(fAngle);
+        float s = std::sin(fAngle);
+        float c = std::cos(fAngle);
         for (int i = 0; i < 8; i++) {
             rotCube[i].x = unitCube[i].x * c + unitCube[i].z * s;
             rotCube[i].y = unitCube[i].y;
@@ -144,8 +140,8 @@ protected:
         }
 
         // Rotate Cube in X-Axis around origin (tilt slighly overhead)
-        s = sin(fPitch);
-        c = cos(fPitch);
+        s = std::sin(fPitch);
+        c = std::cos(fPitch);
         for (int i = 0; i < 8; i++) {
             worldCube[i].x = rotCube[i].x;
             worldCube[i].y = rotCube[i].y * c - rotCube[i].z * s;
@@ -245,9 +241,14 @@ protected:
             for (int x = 0; x < world.size.x; x++) {
                 world.GetCell({x, y}).wall = false;
                 world.GetCell({x, y}).id[olc::Face::Floor] = olc::vi2d{3, 1} * vTileSize;
+                world.GetCell({x, y}).id[olc::Face::Top] = olc::vi2d{0, 0} * vTileSize;
+                world.GetCell({x, y}).id[olc::Face::North] = olc::vi2d{0, 0} * vTileSize;
+                world.GetCell({x, y}).id[olc::Face::South] = olc::vi2d{0, 0} * vTileSize;
+                world.GetCell({x, y}).id[olc::Face::West] = olc::vi2d{0, 0} * vTileSize;
+                world.GetCell({x, y}).id[olc::Face::East] = olc::vi2d{0, 0} * vTileSize;
             }
 
-        std::cout << "LOADING WORLD...\n";
+        std::cout << "LOADING MAP...\n";
         std::ifstream file(mapJsonPath);
         file >> mapDict;
         int32_t key_, x, y;
@@ -263,7 +264,8 @@ protected:
             }
             for (int faceid = 0; faceid < 6; faceid++) {
                 if (value.contains(olc::Face_s[faceid]))
-                    world.GetCell({x, y}).id[faceid] = {value[olc::Face_s[faceid]][0], value[olc::Face_s[faceid]][1]};
+                    world.GetCell({x, y}).id[faceid] = {value[olc::Face_s[faceid]][0],
+                                                        value[olc::Face_s[faceid]][1]};
             }
         }
     }
@@ -309,13 +311,46 @@ protected:
     void RenderGameFg() {
         uint8_t layer_id = static_cast<uint8_t>(RenderLayer::GameFg);
         SetDrawTarget(layer_id);
-        Clear(olc::WHITE);
+        // Grab mouse for convenience
+        olc::vi2d vMouse = {GetMouseX(), GetMouseY()};
+        float fElapsedTime = GetElapsedTime();
+
+        // Smooth camera
+        fCameraAngle += (fCameraAngleTarget - fCameraAngle) * 10.0f * fElapsedTime;
+
+        if (GetKey(olc::Key::W).bHeld && !GetKey(olc::Key::S).bHeld) {
+            vCharVel.y = -10.0f;
+        } else if (!GetKey(olc::Key::W).bHeld && GetKey(olc::Key::S).bHeld) {
+            vCharVel.y = 10.0f;
+        } else {
+            vCharVel.y = 0;
+        }
+
+        if (GetKey(olc::Key::A).bHeld && !GetKey(olc::Key::D).bHeld) {
+            vCharVel.x = -10.0f;
+        } else if (!GetKey(olc::Key::A).bHeld && GetKey(olc::Key::D).bHeld) {
+            vCharVel.x = 10.0f;
+        } else {
+            vCharVel.x = 0;
+        }
+
+        // Resolve
+        resolveCollision(vCharPos, vCharVel, fElapsedTime);
+
+        if (vCharPos.x < 0) vCharPos.x = 0;
+        if (vCharPos.y < 0) vCharPos.y = 0;
+        if (vCharPos.x >= world.size.x) vCharPos.x = world.size.x - 1;
+        if (vCharPos.y >= world.size.y) vCharPos.y = world.size.y - 1;
+
 
         // Position camera in world
         vCameraPos = vCharPos;
         vCameraPos *= fCameraZoom;
 
         // Rendering
+
+        // 1) Create dummy cube to extract visible face information
+        // Cull faces that cannot be seen
         std::array<olc::vec3d, 8> cullCube = CreateCube({0, 0}, fCameraAngle, fCameraPitch, fCameraZoom,
                                                         {vCameraPos.x, 0.0f, vCameraPos.y});
         CalculateVisibleFaces(cullCube);
@@ -341,55 +376,29 @@ protected:
             DrawPartialWarpedDecal
                     (
                             rendAllWalls.Decal(),
-                            {
-                                    {q.points[0].x, q.points[0].y},
-                                    {q.points[1].x, q.points[1].y},
-                                    {q.points[2].x, q.points[2].y},
-                                    {q.points[3].x, q.points[3].y}
-                            },
+                            {{q.points[0].x, q.points[0].y},
+                             {q.points[1].x, q.points[1].y},
+                             {q.points[2].x, q.points[2].y},
+                             {q.points[3].x, q.points[3].y}},
                             q.tile,
                             vTileSize
                     );
 
-        // 6) Draw character
+        // 6) Draw selection "tile cube"
         vQuads.clear();
         GetFaceQuads(vCharPos, fCameraAngle, fCameraPitch, fCameraZoom, {vCameraPos.x, 0.0f, vCameraPos.y}, vQuads);
         for (auto &q : vQuads)
-            DrawWarpedDecal(rendMainChar.Decal(), {
-                    {q.points[0].x, q.points[0].y},
-                    {q.points[1].x, q.points[1].y},
-                    {q.points[2].x, q.points[2].y},
-                    {q.points[3].x, q.points[3].y}
-            });
+            DrawWarpedDecal(rendSelect.Decal(), {{q.points[0].x, q.points[0].y},
+                                                 {q.points[1].x, q.points[1].y},
+                                                 {q.points[2].x, q.points[2].y},
+                                                 {q.points[3].x, q.points[3].y}});
 
         // 7) Draw some debug info
-        DrawStringDecal({0, 0}, "Cursor: " + std::to_string(vCharPos.x) + ", " + std::to_string(vCharPos.y),
-                        olc::YELLOW, {0.5f, 0.5f});
+        DrawStringDecal({0, 0}, "Cursor: " + std::to_string(vCharPos.x) + ", " + std::to_string(vCharPos.y), olc::YELLOW,
+                        {0.5f, 0.5f});
         DrawStringDecal({0, 8}, "Angle: " + std::to_string(fCameraAngle) + ", " + std::to_string(fCameraPitch),
                         olc::YELLOW, {0.5f, 0.5f});
-        DrawStringDecal({0, 16},
-                        "Char Pos: " + vCharPos.str() + " " + std::to_string(vCharPos.y * mapSize.x + vCharPos.x),
-                        olc::YELLOW, {0.5f, 0.5f});
-//        DrawStringDecal({0, 24}, mapDict.dump(2), olc::YELLOW, {0.5f, 0.5f});
-
-        if (GetKey(olc::Key::W).bHeld && !GetKey(olc::Key::S).bHeld) {
-            vCharVel.y = -constVel;
-        } else if (!GetKey(olc::Key::W).bHeld && GetKey(olc::Key::S).bHeld) {
-            vCharVel.y = constVel;
-        } else {
-            vCharVel.y = 0;
-        }
-
-        if (GetKey(olc::Key::A).bHeld && !GetKey(olc::Key::D).bHeld) {
-            vCharVel.x = -constVel;
-        } else if (!GetKey(olc::Key::A).bHeld && GetKey(olc::Key::D).bHeld) {
-            vCharVel.x = constVel;
-        } else {
-            vCharVel.x = 0;
-        }
-
-        // Resolve
-        resolveCollision(vCharPos, vCharVel, GetElapsedTime());
+        DrawStringDecal({0, 16}, mapDict.dump(2), olc::YELLOW, {0.5f, 0.5f});
 
         EnableLayer(layer_id, true);
         SetDrawTarget(nullptr);
@@ -413,8 +422,6 @@ public:
         }
         layerToRender = RenderLayer::Splash;
 
-        // Load logo
-        rendLogo.Load(assetsPath + "olc_logo_long.png");
         // Load sprite sheets
         rendAllWalls.Load(spriteSheetPath);
         // Create empty world
@@ -481,7 +488,6 @@ public:
                 break;
             }
         }
-
 
         // Graceful exit if user is in full screen mode
         return !GetKey(olc::Key::ESCAPE).bPressed;

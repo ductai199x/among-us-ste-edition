@@ -12,7 +12,7 @@ public:
     }
 
 protected:
-    std::string assetsPath = "/home/bigboy/1-workdir/among-us-ste-edition/assets/";
+    std::string assetsPath = "/home/hanh/1-workdir/among-us-ste-edition/assets/";
     std::string spriteSheetPath = assetsPath + "32x32.png";
     std::string mapJsonPath = assetsPath + "map.json";
 

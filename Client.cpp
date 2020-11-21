@@ -82,6 +82,7 @@ private:
     olc::Renderable rendOpeningBg;
     olc::Renderable rendMainChar;
     olc::Renderable rendAllWalls;
+    olc::Renderable rendBlur;
 
     olc::vf2d vCameraPos = {0.0f, 0.0f};
     float fCameraAngle = 0.0f;
@@ -116,10 +117,10 @@ private:
     json mapDict;
 
     //Buttons and first few layers' widget
-    olc::vf2d vLocGameBtnPos = {100, 100};
-    olc::vf2d vHostGameBtnPos = {100, 200};
-    olc::vf2d vLocGameBtnSz = {200, 70};
-    olc::vf2d vHostGameBtnSz = {200, 70};
+    olc::vf2d vLocGameBtnPos = {80, 100};
+    olc::vf2d vHostGameBtnPos = {80, 180};
+    olc::vf2d vLocGameBtnSz = {200, 50};
+    olc::vf2d vHostGameBtnSz = {200, 50};
 
 
 
@@ -303,29 +304,35 @@ protected:
         SetDrawTarget(nullptr);
     }
 
-    void RenderOpeningBg() {
+    void RenderOpeningBg() { //This is actually fg
         uint8_t layer_id = static_cast<uint8_t>(RenderLayer::OpeningBg);
         SetDrawTarget(layer_id);
-        Clear(olc::WHITE);
         
-        DrawDecal({0,0}, rendOpeningBg.Decal(), {1.5f, 1.5f});
+        Clear(olc::BLANK);
         
-        FillRect(int(vLocGameBtnPos.x), int(vLocGameBtnPos.y), int(vLocGameBtnSz.x), int(vLocGameBtnSz.y), olc::BLACK);
-        FillRect(int(vHostGameBtnPos.x), int(vHostGameBtnPos.y), int(vHostGameBtnSz.x), int(vHostGameBtnSz.y), olc::BLACK);
+        // DrawDecal(vLocGameBtnPos, rendBlur.Decal(), {(vLocGameBtnSz.x + 5)/1699.0f, (vLocGameBtnSz.y)/579.0f}, olc::Pixel(255,255,255,180));
+        // DrawDecal(vHostGameBtnPos, rendBlur.Decal(), {(vHostGameBtnSz.x + 5)/1699.0f, (vHostGameBtnSz.y)/579.0f}, olc::Pixel(255,255,255,180));
+        FillRect(int(vLocGameBtnPos.x), int(vLocGameBtnPos.y), int(vLocGameBtnSz.x), int(vLocGameBtnSz.y), olc::Pixel(255,255,255,180));
+        FillRect(int(vHostGameBtnPos.x), int(vHostGameBtnPos.y), int(vHostGameBtnSz.x), int(vHostGameBtnSz.y), olc::Pixel(255,255,255,180));
+        DrawRect(int(vLocGameBtnPos.x) + 5, int(vLocGameBtnPos.y) + 5, int(vLocGameBtnSz.x)-10, int(vLocGameBtnSz.y)-10, olc::WHITE);
+        DrawRect(int(vHostGameBtnPos.x) + 5, int(vHostGameBtnPos.y) + 5, int(vHostGameBtnSz.x)-10, int(vHostGameBtnSz.y)-10, olc::WHITE);
 
-        DrawStringDecal({vLocGameBtnPos.x + 10.0f, vLocGameBtnPos.y + 10.0f}, "Start Local Game", olc::YELLOW, {1.0f, 1.0f});
-        DrawStringDecal({vHostGameBtnPos.x + 10.0f, vHostGameBtnPos.y + 10.0f}, "Join Hosted Game", olc::YELLOW, {1.0f, 1.0f});
+        DrawStringDecal({vLocGameBtnPos.x + 20.0f, vLocGameBtnPos.y + 20.0f}, "Start Local Game", olc::BLACK, {1.0f, 1.0f});
+        DrawStringDecal({vHostGameBtnPos.x + 20.0f, vHostGameBtnPos.y + 20.0f}, "Join Hosted Game", olc::BLACK, {1.0f, 1.0f});
 
         EnableLayer(layer_id, true);
         EnableClearVecDecal(layer_id, false);
         SetDrawTarget(nullptr);
     }
 
-    void RenderOpeningFg() {
+    void RenderOpeningFg() { //This is actually bg
         std::cout << "rendering Opening FG\n"; 
         uint8_t layer_id = static_cast<uint8_t>(RenderLayer::OpeningFg);
         SetDrawTarget(layer_id);
-        Clear(olc::BLANK);
+
+        Clear(olc::VERY_DARK_BLUE);
+        DrawDecal({0,0}, rendOpeningBg.Decal(), {1.5f, 1.5f});
+
 
         EnableLayer(layer_id, true);
         EnableClearVecDecal(layer_id, false);
@@ -421,12 +428,134 @@ protected:
         SetDrawTarget(nullptr);
     }
 
+    void RenderLobbyMap() {
+        uint8_t layer_id = static_cast<uint8_t>(RenderLayer::GameFg);
+        SetDrawTarget(layer_id);
+        Clear(olc::WHITE);
+
+        // Position camera in world
+        vCameraPos = vCharPos;
+        vCameraPos *= fCameraZoom;
+
+        // Rendering
+        std::array<olc::vec3d, 8> cullCube = CreateCube({0, 0}, fCameraAngle, fCameraPitch, fCameraZoom,
+                                                        {vCameraPos.x, 0.0f, vCameraPos.y});
+        CalculateVisibleFaces(cullCube);
+
+        // 2) Get all visible sides of all visible "tile cubes"o
+        std::vector<olc::sQuad> vQuads;
+        for (int y = 0; y < world.size.y; y++)
+            for (int x = 0; x < world.size.x; x++)
+                GetFaceQuads({x + 0.0f, y + 0.0f}, fCameraAngle, fCameraPitch, fCameraZoom,
+                             {vCameraPos.x, 0.0f, vCameraPos.y},
+                             vQuads);
+
+        // 3) Sort in order of depth, from farthest away to closest
+        std::sort(vQuads.begin(), vQuads.end(), [](const olc::sQuad &q1, const olc::sQuad &q2) {
+            float z1 = (q1.points[0].z + q1.points[1].z + q1.points[2].z + q1.points[3].z) * 0.25f;
+            float z2 = (q2.points[0].z + q2.points[1].z + q2.points[2].z + q2.points[3].z) * 0.25f;
+            return z1 < z2;
+        });
+
+        // 4) Iterate through all "tile cubes" and draw their visible faces
+        Clear(olc::BLACK);
+        for (auto &q : vQuads)
+            DrawPartialWarpedDecal
+                    (
+                            rendAllWalls.Decal(),
+                            {
+                                    {q.points[0].x, q.points[0].y},
+                                    {q.points[1].x, q.points[1].y},
+                                    {q.points[2].x, q.points[2].y},
+                                    {q.points[3].x, q.points[3].y}
+                            },
+                            q.tile,
+                            vTileSize
+                    );
+
+        // 6) Draw character
+        vQuads.clear();
+        GetFaceQuads(vCharPos, fCameraAngle, fCameraPitch, fCameraZoom, {vCameraPos.x, 0.0f, vCameraPos.y}, vQuads);
+        for (auto &q : vQuads)
+            DrawWarpedDecal(rendMainChar.Decal(), {
+                    {q.points[0].x, q.points[0].y},
+                    {q.points[1].x, q.points[1].y},
+                    {q.points[2].x, q.points[2].y},
+                    {q.points[3].x, q.points[3].y}
+            });
+
+        // 7) Draw some debug info
+        DrawStringDecal({0, 0}, "Cursor: " + std::to_string(vCharPos.x) + ", " + std::to_string(vCharPos.y),
+                        olc::CYAN, {0.5f, 0.5f});
+        DrawStringDecal({0, 8}, "Angle: " + std::to_string(fCameraAngle) + ", " + std::to_string(fCameraPitch),
+                        olc::CYAN, {0.5f, 0.5f});
+        DrawStringDecal({0, 16},
+                        "Char Pos: " + vCharPos.str() + " " + std::to_string(vCharPos.y * mapSize.x + vCharPos.x),
+                        olc::CYAN, {0.5f, 0.5f});
+        DrawStringDecal({0, 24}, "This supposed to be lobby map",
+                        olc::CYAN, {0.5f, 0.5f});
+//        DrawStringDecal({0, 24}, mapDict.dump(2), olc::YELLOW, {0.5f, 0.5f});
+
+        if (GetKey(olc::Key::W).bHeld && !GetKey(olc::Key::S).bHeld) {
+            vCharVel.y = -constVel;
+        } else if (!GetKey(olc::Key::W).bHeld && GetKey(olc::Key::S).bHeld) {
+            vCharVel.y = constVel;
+        } else {
+            vCharVel.y = 0;
+        }
+
+        if (GetKey(olc::Key::A).bHeld && !GetKey(olc::Key::D).bHeld) {
+            vCharVel.x = -constVel;
+        } else if (!GetKey(olc::Key::A).bHeld && GetKey(olc::Key::D).bHeld) {
+            vCharVel.x = constVel;
+        } else {
+            vCharVel.x = 0;
+        }
+
+        // Resolve
+        resolveCollision(vCharPos, vCharVel, GetElapsedTime());
+
+        EnableLayer(layer_id, true);
+        SetDrawTarget(nullptr);
+    }
+
+    void RenderLobbyBg() { //screen button and house rule info
+        //Get house rule info from where? server?
+        uint8_t layer_id = static_cast<uint8_t>(RenderLayer::OpeningBg);
+        SetDrawTarget(layer_id);
+        
+        Clear(olc::BLANK);
+        
+        // DrawDecal(vLocGameBtnPos, rendBlur.Decal(), {(vLocGameBtnSz.x + 5)/1699.0f, (vLocGameBtnSz.y)/579.0f}, olc::Pixel(255,255,255,180));
+        // DrawDecal(vHostGameBtnPos, rendBlur.Decal(), {(vHostGameBtnSz.x + 5)/1699.0f, (vHostGameBtnSz.y)/579.0f}, olc::Pixel(255,255,255,180));
+        FillRect(int(vLocGameBtnPos.x), int(vLocGameBtnPos.y), int(vLocGameBtnSz.x), int(vLocGameBtnSz.y), olc::Pixel(255,255,255,180));
+        FillRect(int(vHostGameBtnPos.x), int(vHostGameBtnPos.y), int(vHostGameBtnSz.x), int(vHostGameBtnSz.y), olc::Pixel(255,255,255,180));
+        DrawRect(int(vLocGameBtnPos.x) + 5, int(vLocGameBtnPos.y) + 5, int(vLocGameBtnSz.x)-10, int(vLocGameBtnSz.y)-10, olc::WHITE);
+        DrawRect(int(vHostGameBtnPos.x) + 5, int(vHostGameBtnPos.y) + 5, int(vHostGameBtnSz.x)-10, int(vHostGameBtnSz.y)-10, olc::WHITE);
+
+        DrawStringDecal({vLocGameBtnPos.x + 20.0f, vLocGameBtnPos.y + 20.0f}, "Start Local Game", olc::BLACK, {1.0f, 1.0f});
+        DrawStringDecal({vHostGameBtnPos.x + 20.0f, vHostGameBtnPos.y + 20.0f}, "Join Hosted Game", olc::BLACK, {1.0f, 1.0f});
+
+        EnableLayer(layer_id, true);
+        EnableClearVecDecal(layer_id, false);
+        SetDrawTarget(nullptr);
+    }
+
+    void RenderLobbyFg() { //house rule editor
+        RenderSplash();
+    }
+
+    void getTextInput() {
+
+    }
+
+
 public:
     bool OnUserCreate() override {
         // Initialize layers:
-        // 0: Splash screen
-        // 1: Opening screen animation
-        // 2: Opening screen buttons
+        // 0: Splash screen (done)
+        // 1: Opening screen animation (bg done)
+        // 2: Opening screen buttons (done)
         // 3: Lobby screen map
         // 4: Lobby screen button + house rule info
         // 5: Lobby screen house rule editor / character editor
@@ -442,6 +571,10 @@ public:
         //Load backgrounds
         rendSplashbg.Load(splashBgPath);
         rendOpeningBg.Load(assetsPath + "openBg.png");
+        //Load Effects
+        rendBlur.Load(assetsPath + "blur.png");
+
+
         // Load logo
         rendLogo.Load(assetsPath + "olc_logo_long.png");
         // Load sprite sheets
@@ -463,7 +596,7 @@ public:
                     isShowingLayer = true;
                 } else {
                     LoadMap();
-                    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                     EnableLayer(static_cast<uint8_t>(RenderLayer::Splash), false);
                     layerToRender = RenderLayer::OpeningBg;
                     isShowingLayer = false;
@@ -488,11 +621,14 @@ public:
                     if (GetMouse(0).bReleased) {
                         if (inFrame(GetMousePos(), vLocGameBtnPos, vLocGameBtnSz)) {
                             DrawString(300, 400, "Starting Local game", olc::BLUE);
-                            //Implemnet going to Lobby and Map settings here
-
+                            //Implement going to Lobby and Map settings here
+                            EnableLayer(static_cast<uint8_t>(RenderLayer::OpeningBg), false);
+                            EnableLayer(static_cast<uint8_t>(RenderLayer::OpeningFg), false);
+                            layerToRender = RenderLayer::LobbyBg;
+                            isShowingLayer = false;
                         } else if (inFrame(GetMousePos(), vHostGameBtnPos, vHostGameBtnSz)) {
                             DrawString(300, 400, "Joining Hosted game", olc::RED);
-                            std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
+                            //std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
                             EnableLayer(static_cast<uint8_t>(RenderLayer::OpeningBg), false);
                             EnableLayer(static_cast<uint8_t>(RenderLayer::OpeningFg), false);
                             layerToRender = RenderLayer::GameFg;
@@ -503,11 +639,30 @@ public:
                 break;
             }
             case RenderLayer::LobbyMap:
+                RenderLobbyMap();
+                // if (!isShowingLayer) {
+                //     RenderLobbyMap();
+                //     isShowingLayer = true;
+                    if (GetMouse(0).bReleased) {
+                        if (inFrame(GetMousePos(), vLocGameBtnPos, vLocGameBtnSz)) {
+                            EnableLayer(static_cast<uint8_t>(RenderLayer::LobbyBg), false);
+                            layerToRender = RenderLayer::LobbyFg;
+                            isShowingLayer = false;
+
                 break;
             case RenderLayer::LobbyBg:
+                if (!isShowingLayer) {
+                    RenderOpeningBg();
+                    isShowingLayer = true;
+                } else {
+                    layerToRender = RenderLayer::LobbyMap;
+                    isShowingLayer = false;
+                }
                 break;
-            case RenderLayer::LobbyFg:
+            case RenderLayer::LobbyFg: {
+                RenderLobbyFg();
                 break;
+            }
             case RenderLayer::GameMap:
                 break;
             case RenderLayer::GameBg:
@@ -518,7 +673,7 @@ public:
             }
         }
 
-
+        }
         // Graceful exit if user is in full screen mode
         return !GetKey(olc::Key::ESCAPE).bPressed;
     }

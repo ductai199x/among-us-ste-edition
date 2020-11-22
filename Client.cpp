@@ -20,6 +20,9 @@ enum class RenderLayer {
     GameFg
 };
 
+std::string alphabet = "abcdefghijklmnopqrstuvwxyz";
+std::string cap_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
 class Client : public olc::net::client_interface<MsgTypes> {
 public:
     void PingServer() {
@@ -68,7 +71,7 @@ public:
     }
 
 private:
-    std::string assetsPath = "/home/hanh/1-workdir/among-us-ste-edition/assets/";
+    std::string assetsPath = "/home/qh62/Documents/among-us-ste-edition/assets/";
     std::string spriteSheetPath = assetsPath + "32x32.png";
     std::string mapJsonPath = assetsPath + "map.json";
     std::string splashBgPath = assetsPath + "splash.png";
@@ -117,6 +120,8 @@ private:
     json mapDict;
 
     //Buttons and first few layers' widget
+    olc::vf2d vUsernameFieldPos = {300, 40};
+    olc::vf2d vUsernameFieldSz = {200, 40};
     olc::vf2d vLocGameBtnPos = {80, 100};
     olc::vf2d vHostGameBtnPos = {80, 180};
     olc::vf2d vLocGameBtnSz = {200, 50};
@@ -124,7 +129,97 @@ private:
     olc::vf2d vModRulesBtnPos = {40, 80};
     olc::vf2d vModRulesBtnSz = {140, 50};
 
+    //String input class
+    class InputField {
+        public:
+            InputField(std::string default_content, std::string initial_content) {
+                default_txt = default_content;
+                content = initial_content;
+                editorPos = int(content.length());
+            }
 
+            bool checkFinished() { return finished; }
+            bool checkEdited() { return edited; }
+            void markAsUnfinished() { finished = false; }
+            void markAsFinished() { finished = true; }
+            void markAsEdited() { edited = true; }
+            void markAsDefault() { edited = false; }
+
+            std::string getDefault() { return default_txt; }
+            std::string getContent() { return content; }
+            void setDefault() { default_txt = content; }
+
+            std::string Editting() {
+                contentLength = int(content.length());
+                
+                if ((blinkCounter/blinkPeriod)%2) {
+                    display = content.substr(0, editorPos) + " " + \
+                              content.substr(editorPos, contentLength-editorPos);
+                }
+                else {
+                    display = content.substr(0, editorPos) + "l" + \
+                              content.substr(editorPos, contentLength-editorPos);     
+                }
+                
+                blinkCounter++;
+                return display;
+            }
+            void deleteChar() {
+                if (contentLength > 0) {
+                    if (editorPos > 0) {
+                        content = content.substr(0, editorPos-1) + \
+                                content.substr(editorPos, contentLength-editorPos);
+                        contentLength--;
+                        editorPos--;
+                    }
+                }
+            }
+            void moveEditorLeft() {
+                if (editorPos > 0) { 
+                    editorPos--; 
+                }
+            }
+            void moveEditorRight() {
+                if (editorPos < contentLength ) { 
+                    editorPos++; 
+                }
+            }
+            void moveEditorFirst() { editorPos = 0; }
+            void moveEditorLast() { editorPos = contentLength; }
+            void insertChar(int charNum) {
+                std::string newChar = alphabet.substr(charNum, 1);
+                content = content.substr(0, editorPos) + newChar +\
+                          content.substr(editorPos, contentLength-editorPos);
+                contentLength++;
+                editorPos++;
+            }
+            void insertCapChar(int charNum) {
+                std::string newChar = cap_alphabet.substr(charNum, 1);
+                content = content.substr(0, editorPos) + newChar +\
+                          content.substr(editorPos, contentLength-editorPos);
+                contentLength++;
+                editorPos++;
+            }
+
+            float getUsernameXPos(float x0, float x1) {
+                return ((x0 + x1)/(2.0f) - contentLength*txtScale/(2.0f));
+            }
+
+        private:
+            bool edited;
+            bool finished;
+            std::string default_txt;
+            std::string content;
+            std::string display;
+
+            float txtScale = 3.8f;
+            int blinkCounter = 0;
+            int blinkPeriod = 40; // (frames)
+            int editorPos;
+            int contentLength;
+    };
+
+    InputField username = InputField("Username", "MeoBu");
 
 protected:
     std::array<olc::vec3d, 8>
@@ -322,6 +417,9 @@ protected:
         DrawStringDecal({vLocGameBtnPos.x + 20.0f, vLocGameBtnPos.y + 20.0f}, "Start Local Game", olc::BLACK, {1.0f, 1.0f});
         DrawStringDecal({vHostGameBtnPos.x + 20.0f, vHostGameBtnPos.y + 20.0f}, "Join Hosted Game", olc::BLACK, {1.0f, 1.0f});
 
+        FillRect(int(vUsernameFieldPos.x), int(vUsernameFieldPos.y), int(vUsernameFieldSz.x), int(vUsernameFieldSz.y), olc::Pixel(255,255,255,180));
+        DrawRect(int(vUsernameFieldPos.x) + 5, int(vUsernameFieldPos.y) + 5, int(vUsernameFieldSz.x)-10, int(vUsernameFieldSz.y)-10, olc::WHITE);
+
         EnableLayer(layer_id, true);
         EnableClearVecDecal(layer_id, false);
         SetDrawTarget(nullptr);
@@ -335,6 +433,7 @@ protected:
         Clear(olc::VERY_DARK_BLUE);
         DrawDecal({0,0}, rendOpeningBg.Decal(), {1.5f, 1.5f});
 
+        username.markAsDefault();
 
         EnableLayer(layer_id, true);
         EnableClearVecDecal(layer_id, false);
@@ -389,13 +488,19 @@ protected:
         // 6) Draw character
         vQuads.clear();
         GetFaceQuads(vCharPos, fCameraAngle, fCameraPitch, fCameraZoom, {vCameraPos.x, 0.0f, vCameraPos.y}, vQuads);
-        for (auto &q : vQuads)
+        for (auto &q : vQuads) {
             DrawWarpedDecal(rendMainChar.Decal(), {
                     {q.points[0].x, q.points[0].y},
                     {q.points[1].x, q.points[1].y},
                     {q.points[2].x, q.points[2].y},
                     {q.points[3].x, q.points[3].y}
             });
+            DrawStringDecal({username.getUsernameXPos( \
+                q.points[1].x, q.points[2].x), q.points[1].y - 5 \
+                }, username.getContent(), olc::WHITE, {0.5f, 0.5f});
+        }
+
+// {q.points[1].x, q.points[1].y-5}
 
         // 7) Draw some debug info
         DrawStringDecal({0, 0}, "Cursor: " + std::to_string(vCharPos.x) + ", " + std::to_string(vCharPos.y),
@@ -405,6 +510,8 @@ protected:
         DrawStringDecal({0, 16},
                         "Char Pos: " + vCharPos.str() + " " + std::to_string(vCharPos.y * mapSize.x + vCharPos.x),
                         olc::YELLOW, {0.5f, 0.5f});
+
+
 //        DrawStringDecal({0, 24}, mapDict.dump(2), olc::YELLOW, {0.5f, 0.5f});
 
         if (GetKey(olc::Key::W).bHeld && !GetKey(olc::Key::S).bHeld) {
@@ -538,6 +645,7 @@ protected:
     }
 
     void RenderLobbyFg() { //house rule editor
+
         RenderSplash();
     }
 
@@ -622,6 +730,8 @@ public:
                             EnableLayer(static_cast<uint8_t>(RenderLayer::OpeningFg), false);
                             layerToRender = RenderLayer::LobbyBg;
                             isShowingLayer = false;
+                            //Update default username
+                            username.setDefault();
                         } else if (inFrame(GetMousePos(), vHostGameBtnPos, vHostGameBtnSz)) {
                             DrawString(300, 400, "Joining Hosted game", olc::RED);
                             //std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
@@ -629,8 +739,68 @@ public:
                             EnableLayer(static_cast<uint8_t>(RenderLayer::OpeningFg), false);
                             layerToRender = RenderLayer::GameFg;
                             isShowingLayer = false;
+                            //Update default username
+                            username.setDefault();
+                        } else if (inFrame(GetMousePos(), vUsernameFieldPos, vUsernameFieldSz)) {
+                            username.markAsUnfinished();
+                            username.markAsEdited();
+                        } else {
+                            username.markAsFinished();
                         }
                     }
+
+                    if (!username.checkFinished()) {
+                        if (GetKey(olc::Key::BACK).bPressed) {
+                            username.deleteChar();
+                        }
+                        else if (GetKey(olc::Key::LEFT).bPressed) {
+                            username.moveEditorLeft();
+                        }
+                        else if (GetKey(olc::Key::RIGHT).bPressed) {
+                            username.moveEditorRight();
+                        }
+                        else if (GetKey(olc::Key::UP).bPressed) {
+                            username.moveEditorFirst();
+                        }
+                        else if (GetKey(olc::Key::DOWN).bPressed) {
+                            username.moveEditorLast();
+                        }
+                        else {
+                            if (GetKey(olc::Key::SHIFT).bHeld) {
+                                for (olc::Key currKey = olc::Key::A; currKey != olc::Key::K0; \
+                                        currKey = (olc::Key)( (int)(currKey)+1 )) {
+                                    if (GetKey(currKey).bReleased) {
+                                        username.insertCapChar(int(currKey) - 1);
+                                    }
+                                }
+                            }
+                            else {
+                                for (olc::Key currKey = olc::Key::A; currKey != olc::Key::K0; \
+                                        currKey = (olc::Key)( (int)(currKey)+1 )) {
+                                    if (GetKey(currKey).bReleased) {
+                                        username.insertChar(int(currKey) - 1);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+
+                    if (!username.checkEdited()) {
+                        DrawStringDecal({vUsernameFieldPos.x + 50.0f, vUsernameFieldPos.y + 15.0f}, \
+                                        username.getDefault(), olc::DARK_GREY, {1.5f, 1.5f});
+                    }
+                    else {
+                        if (username.checkFinished()) {
+                            DrawStringDecal({vUsernameFieldPos.x + 15.0f, vUsernameFieldPos.y + 15.0f}, \
+                                            username.getContent(), olc::BLACK, {1.5f, 1.5f});
+                        }
+                        else {
+                            DrawStringDecal({vUsernameFieldPos.x + 15.0f, vUsernameFieldPos.y + 15.0f}, \
+                                            username.Editting(), olc::BLACK, {1.5f, 1.5f});
+                        }
+                    }
+
                 }
                 break;
             }

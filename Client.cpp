@@ -122,6 +122,8 @@ private:
     //Buttons and first few layers' widget
     olc::vf2d vUsernameFieldPos = {300, 40};
     olc::vf2d vUsernameFieldSz = {200, 40};
+    olc::vf2d vPasscodeFieldPos = {300, 400};
+    olc::vf2d vPasscodeFieldSz = {200, 40};
     olc::vf2d vLocGameBtnPos = {80, 100};
     olc::vf2d vHostGameBtnPos = {80, 180};
     olc::vf2d vLocGameBtnSz = {200, 50};
@@ -151,8 +153,7 @@ private:
 
             std::string Editting() {
                 contentLength = int(content.length());
-                
-                if ((blinkCounter/blinkPeriod)%2) {
+                if (int(blinkCounter/blinkPeriod) % 2) {
                     display = content.substr(0, editorPos) + " " + \
                               content.substr(editorPos, contentLength-editorPos);
                 }
@@ -205,6 +206,10 @@ private:
                 return ((x0 + x1)/(2.0f) - contentLength*txtScale/(2.0f));
             }
 
+            void updateFPS(int lastFPS) {
+                blinkPeriod = 2*lastFPS/3;
+            }
+
         private:
             bool edited;
             bool finished;
@@ -214,12 +219,109 @@ private:
 
             float txtScale = 3.8f;
             int blinkCounter = 0;
-            int blinkPeriod = 40; // (frames)
+            int blinkPeriod = 1000;
             int editorPos;
             int contentLength;
     };
 
     InputField username = InputField("Username", "MeoBu");
+    InputField passcode = InputField("Passcode", "ABCXYZ");
+
+    void usernameEdit() {
+        if (!username.checkFinished()) {
+            username.updateFPS(int(GetFPS()));
+            if (GetKey(olc::Key::BACK).bPressed) {
+                username.deleteChar();
+            }
+            else if (GetKey(olc::Key::LEFT).bPressed) {
+                username.moveEditorLeft();
+            }
+            else if (GetKey(olc::Key::RIGHT).bPressed) {
+                username.moveEditorRight();
+            }
+            else if (GetKey(olc::Key::UP).bPressed) {
+                username.moveEditorFirst();
+            }
+            else if (GetKey(olc::Key::DOWN).bPressed) {
+                username.moveEditorLast();
+            }
+            else {
+                if (GetKey(olc::Key::SHIFT).bHeld) {
+                    for (olc::Key currKey = olc::Key::A; currKey != olc::Key::K0; \
+                            currKey = (olc::Key)( (int)(currKey)+1 )) {
+                        if (GetKey(currKey).bReleased) {
+                            username.insertCapChar(int(currKey) - 1);
+                        }
+                    }
+                }
+                else {
+                    for (olc::Key currKey = olc::Key::A; currKey != olc::Key::K0; \
+                            currKey = (olc::Key)( (int)(currKey)+1 )) {
+                        if (GetKey(currKey).bReleased) {
+                            username.insertChar(int(currKey) - 1);
+                        }
+                    }
+                }
+            }
+        }
+        if (!username.checkEdited()) {
+            DrawStringDecal({vUsernameFieldPos.x + 50.0f, vUsernameFieldPos.y + 15.0f}, \
+                            username.getDefault(), olc::DARK_GREY, {1.5f, 1.5f});
+        }
+        else {
+            if (username.checkFinished()) {
+                DrawStringDecal({vUsernameFieldPos.x + 15.0f, vUsernameFieldPos.y + 15.0f}, \
+                                username.getContent(), olc::BLACK, {1.5f, 1.5f});
+            }
+            else {
+                DrawStringDecal({vUsernameFieldPos.x + 15.0f, vUsernameFieldPos.y + 15.0f}, \
+                                username.Editting(), olc::BLACK, {1.5f, 1.5f});
+            }
+        }
+    }
+
+    void passcodeEdit() {
+        if (!passcode.checkFinished()) {
+            passcode.updateFPS(int(GetFPS()));
+            if (GetKey(olc::Key::BACK).bPressed) {
+                passcode.deleteChar();
+            }
+            else if (GetKey(olc::Key::LEFT).bPressed) {
+                passcode.moveEditorLeft();
+            }
+            else if (GetKey(olc::Key::RIGHT).bPressed) {
+                passcode.moveEditorRight();
+            }
+            else if (GetKey(olc::Key::UP).bPressed) {
+                passcode.moveEditorFirst();
+            }
+            else if (GetKey(olc::Key::DOWN).bPressed) {
+                passcode.moveEditorLast();
+            }
+            else {
+                for (olc::Key currKey = olc::Key::A; currKey != olc::Key::K0; \
+                        currKey = (olc::Key)( (int)(currKey)+1 )) {
+                    if (GetKey(currKey).bReleased) {
+                        passcode.insertCapChar(int(currKey) - 1);
+                    }
+                }
+            }
+        }
+        if (!passcode.checkEdited()) {
+            DrawStringDecal({vPasscodeFieldPos.x + 50.0f, vPasscodeFieldPos.y + 15.0f}, \
+                            passcode.getDefault(), olc::DARK_GREY, {1.5f, 1.5f});
+        }
+        else {
+            if (passcode.checkFinished()) {
+                DrawStringDecal({vPasscodeFieldPos.x + 15.0f, vPasscodeFieldPos.y + 15.0f}, \
+                                passcode.getContent(), olc::BLACK, {1.5f, 1.5f});
+            }
+            else {
+                DrawStringDecal({vPasscodeFieldPos.x + 15.0f, vPasscodeFieldPos.y + 15.0f}, \
+                                passcode.Editting(), olc::BLACK, {1.5f, 1.5f});
+            }
+        }
+    }
 
 protected:
     std::array<olc::vec3d, 8>
@@ -419,6 +521,9 @@ protected:
 
         FillRect(int(vUsernameFieldPos.x), int(vUsernameFieldPos.y), int(vUsernameFieldSz.x), int(vUsernameFieldSz.y), olc::Pixel(255,255,255,180));
         DrawRect(int(vUsernameFieldPos.x) + 5, int(vUsernameFieldPos.y) + 5, int(vUsernameFieldSz.x)-10, int(vUsernameFieldSz.y)-10, olc::WHITE);
+
+        FillRect(int(vPasscodeFieldPos.x), int(vPasscodeFieldPos.y), int(vPasscodeFieldSz.x), int(vPasscodeFieldSz.y), olc::Pixel(255,255,255,180));
+        DrawRect(int(vPasscodeFieldPos.x) + 5, int(vPasscodeFieldPos.y) + 5, int(vPasscodeFieldSz.x)-10, int(vPasscodeFieldSz.y)-10, olc::WHITE);
 
         EnableLayer(layer_id, true);
         EnableClearVecDecal(layer_id, false);
@@ -742,65 +847,21 @@ public:
                             //Update default username
                             username.setDefault();
                         } else if (inFrame(GetMousePos(), vUsernameFieldPos, vUsernameFieldSz)) {
+                            passcode.markAsFinished();
                             username.markAsUnfinished();
                             username.markAsEdited();
-                        } else {
+                        } else if (inFrame(GetMousePos(), vPasscodeFieldPos, vPasscodeFieldSz)) {
                             username.markAsFinished();
-                        }
-                    }
-
-                    if (!username.checkFinished()) {
-                        if (GetKey(olc::Key::BACK).bPressed) {
-                            username.deleteChar();
-                        }
-                        else if (GetKey(olc::Key::LEFT).bPressed) {
-                            username.moveEditorLeft();
-                        }
-                        else if (GetKey(olc::Key::RIGHT).bPressed) {
-                            username.moveEditorRight();
-                        }
-                        else if (GetKey(olc::Key::UP).bPressed) {
-                            username.moveEditorFirst();
-                        }
-                        else if (GetKey(olc::Key::DOWN).bPressed) {
-                            username.moveEditorLast();
+                            passcode.markAsUnfinished();
+                            passcode.markAsEdited();
                         }
                         else {
-                            if (GetKey(olc::Key::SHIFT).bHeld) {
-                                for (olc::Key currKey = olc::Key::A; currKey != olc::Key::K0; \
-                                        currKey = (olc::Key)( (int)(currKey)+1 )) {
-                                    if (GetKey(currKey).bReleased) {
-                                        username.insertCapChar(int(currKey) - 1);
-                                    }
-                                }
-                            }
-                            else {
-                                for (olc::Key currKey = olc::Key::A; currKey != olc::Key::K0; \
-                                        currKey = (olc::Key)( (int)(currKey)+1 )) {
-                                    if (GetKey(currKey).bReleased) {
-                                        username.insertChar(int(currKey) - 1);
-                                    }
-                                }
-                            }
+                            username.markAsFinished();
+                            passcode.markAsFinished();
                         }
                     }
-
-
-                    if (!username.checkEdited()) {
-                        DrawStringDecal({vUsernameFieldPos.x + 50.0f, vUsernameFieldPos.y + 15.0f}, \
-                                        username.getDefault(), olc::DARK_GREY, {1.5f, 1.5f});
-                    }
-                    else {
-                        if (username.checkFinished()) {
-                            DrawStringDecal({vUsernameFieldPos.x + 15.0f, vUsernameFieldPos.y + 15.0f}, \
-                                            username.getContent(), olc::BLACK, {1.5f, 1.5f});
-                        }
-                        else {
-                            DrawStringDecal({vUsernameFieldPos.x + 15.0f, vUsernameFieldPos.y + 15.0f}, \
-                                            username.Editting(), olc::BLACK, {1.5f, 1.5f});
-                        }
-                    }
-
+                    usernameEdit();
+                    passcodeEdit();
                 }
                 break;
             }
